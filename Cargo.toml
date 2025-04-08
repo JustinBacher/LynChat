@@ -1,0 +1,33 @@
+# Description: Lyn AI Assistant Core Configuration
+# Copyright: (c) 2024 The Lyn Authors
+# License: MIT OR Apache-2.0
+
+[package]
+name = "lyn"
+version = "0.1.0"
+edition = "2024" # Set Rust edition to 2024
+description = "A privacy-first, local/hybrid AI assistant."
+readme = "README.md"
+homepage = "https://github.com/your-repo/lyn" # TODO: Update with actual repo URL
+repository = "https://github.com/your-repo/lyn" # TODO: Update with actual repo URL
+license = "MIT OR Apache-2.0"
+keywords = ["ai", "assistant", "llm", "privacy", "local"]
+categories = ["command-line-utilities", "science::ai"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Async runtime
+async-std = { version = "1.12", features = ["attributes", "unstable"] } # Add async-std with features
+
+# Error handling
+thiserror = "1.0"
+
+# Logging/Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# HTTP client (needed later, good to include now)
+reqwest = { version = "0.12", features = ["json"] }
+
+# TODO: Add other dependencies as needed (e.g., serde, config-rs for LYN-2)
