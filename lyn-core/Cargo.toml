@@ -1,0 +1,71 @@
+# Description: Lyn AI Assistant Core Library
+# Copyright: (c) 2024 The Lyn Authors
+# License: MIT OR Apache-2.0
+
+[package]
+name = "lyn-core"
+version = "0.1.0"
+edition = "2024"
+description = "Core engine for the Lyn AI assistant (LLM interaction, memory, tools)."
+readme = "../README.md"
+homepage = "https://github.com/your-repo/lyn"                                          # TODO: Update with actual repo URL
+repository = "https://github.com/your-repo/lyn"                                        # TODO: Update with actual repo URL
+license = "MIT OR Apache-2.0"
+keywords = ["ai", "assistant", "llm", "privacy", "local", "core"]
+categories = ["libraries", "science::ai"]
+
+[lib]
+name = "lyn_core"   # Optional: specify library name
+path = "src/lib.rs" # Specify the library entry point
+
+[dependencies]
+async-trait = "0.1"
+# Async runtime
+async-std = { version = "1.12", features = ["attributes", "unstable"] }
+
+# Error handling
+thiserror = "1.0"
+
+# Async utilities
+futures-util = "0.3" # For stream manipulation
+
+# Logging/Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json"] }
+
+# LLM Client Libraries
+ollama-rs = { version = "0.3", features = ["stream", "tool-implementations"] }
+
+# Configuration
+config = { version = "0.15", features = ["toml"] }
+serde = { version = "1.0", features = ["derive"] }
+dirs = "6.0"
+
+# Vector Database Client
+qdrant-client = { version = "1.9" }
+url = { version = "2.5.4", features = ["serde"] }
+
+# JSON handling
+serde_json = "1.0"
+
+# Date and Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Math expression evaluation
+meval = "0.2"
+
+# Async trait methods (needed for dyn Tool)
+# async-trait = "0.1" # Not needed since Rust 2024 edition stabilizes async fn in traits
+
+# Unique ID generation
+uuid = { version = "1.8", features = ["v4", "serde"] }
+regex = "1.11.1"
+
+# Vector math
+ndarray = "0.16"
+
+[dev-dependencies]
+approx = "0.5" # For floating point comparisons in tests
