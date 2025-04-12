@@ -1,19 +1,22 @@
 //! Core application logic.
 
+use rig::{
+    OneOrMany,
+    completion::{
+        CompletionRequest, Message,
+        message::{Text, UserContent},
+    },
+    streaming::StreamingResult,
+};
+
 use crate::{
     config::{self, AppConfig},
-    llm::{LLMError, LLMProvider, LLMProviders, Message, OllamaClient, Prompt}, // LLMProvider might be removed if only Ollama used
+    llm::{LLMError, LLMProvider, LLMProviders, create_llm_provider},
     memory::{MemoryClient, qdrant::QdrantMemoryClient, summarizer::summarize_interaction},
     prelude::*,
-    // Import the tool functions directly
-    tools::{calculator::Calculator, datetime::DateTime},
 };
-use futures_util::{Stream, StreamExt, TryStreamExt};
-use ollama_rs::{
-    coordinator::Coordinator,
-    generation::chat::{ChatMessage, MessageRole}, // Removed tools::Tool import
-};
-use std::{pin::Pin, sync::Arc};
+use futures_util::TryStreamExt;
+use std::sync::Arc;
 
 // Removed old constants and ToolCallRequest struct
 
@@ -22,7 +25,7 @@ pub struct Engine {
     #[allow(dead_code)] // Keep config for potential future use
     config: Arc<AppConfig>,
     // Store OllamaClient directly for Coordinator usage
-    ollama_client: Arc<OllamaClient>,
+    llm_client: Arc<dyn LLMProvider>,
     #[allow(dead_code)] // TODO: Remove this once memory client is implemented
     memory_client: Arc<dyn MemoryClient>,
     // Removed tools field - tools will be added to Coordinator dynamically
@@ -50,8 +53,7 @@ impl Engine {
                     .to_string(),
             )));
         }
-        let ollama_client = Arc::new(OllamaClient::new(&app_config.provider_configs.ollama)?);
-        info!("Ollama Client initialized.");
+        let llm_client = create_llm_provider(&app_config.provider, &app_config.provider_configs)?;
 
         // --- Initialize Memory (Qdrant) Client ---
         let memory_client = Arc::new(QdrantMemoryClient::new(&app_config.vector_db).await?);
@@ -61,7 +63,7 @@ impl Engine {
 
         Ok(Self {
             config: app_config,
-            ollama_client,
+            llm_client,
             memory_client,
             // tools field removed
         })
@@ -73,104 +75,70 @@ impl Engine {
         trace!("Engine processing prompt: '{}'", user_prompt);
 
         // TODO: Implement proper chat history management for the Coordinator
-        let history: Vec<ChatMessage> = vec![]; // Start with empty history for now
-
-        // Prepare the user message
-        let user_message = ChatMessage::user(user_prompt.to_string());
-
-        // Get model name using the getter
-        let model_name = self.ollama_client.default_model().to_string();
-
-        // Instantiate Coordinator using the client getter
-        let mut coordinator = Coordinator::new(self.ollama_client.client(), model_name, history);
-
-        // Add tool functions directly (as shown in ollama-rs examples)
-        coordinator = coordinator.add_tool(Calculator);
-        coordinator = coordinator.add_tool(DateTime);
-
-        // TODO: Add configuration for Coordinator options (e.g., num_ctx from ModelOptions)
-        // coordinator = coordinator.options(...)
+        let user_message = CompletionRequest {
+            prompt: Message::User {
+                content: OneOrMany::one(UserContent::Text(Text {
+                    text: user_prompt.to_string(),
+                })),
+            },
+            preamble: None,
+            chat_history: vec![],
+            documents: vec![],
+            tools: vec![],
+            temperature: None,
+            max_tokens: None,
+            additional_params: None,
+        };
 
         // Run the chat interaction via the Coordinator
         debug!("Sending prompt to Coordinator with tools...");
-        let response = coordinator
-            .chat(vec![user_message]) // Send only the new user message
+        let response = self
+            .llm_client
+            .generate(&user_message)
             .await
             .map_err(|e| Error::LLM(LLMError::Api(f!("Coordinator chat error: {}", e))))?; // Map error
 
-        let response_content = response.message.content;
-        debug!("Received final response from Coordinator: {}", response_content);
+        let response_content = response.raw_response;
 
-        // Call summarization (temporary location)
-        self.generate_summary_internal(user_prompt, &response_content)
-            .await?;
+        summarize_interaction(
+            &*self.llm_client, // This coerces to &dyn LLMProvider
+            user_prompt,
+            &response_content, // Pass &str directly
+        )
+        .await;
 
         Ok(response_content)
     }
 
-    // --- Temporary Internal Helper Methods (to be refactored) ---
-
-    /// Internal helper to generate summaries. (Adapted from previous free function)
-    /// TODO: Move this logic to MemoryClient implementation (LYN-Refactor-Step-2)
-    async fn generate_summary_internal( // Removed generic S
-        &self,
-        user_prompt: &str, // Use &str directly
-        llm_response: &str, // Use &str directly
-    ) -> Result<String> {
-        trace!("Generating summary for interaction");
-        // Pass OllamaClient as &dyn LLMProvider
-        summarize_interaction(
-            &*self.ollama_client, // This coerces to &dyn LLMProvider
-            user_prompt,          // Pass &str directly
-            llm_response,         // Pass &str directly
-        )
-        .await
-    }
-
     /// Processes a user prompt, handling potential tool calls using Ollama Coordinator,
     /// and returning the final response as a stream.
-    pub async fn process_prompt_stream(
-        &self,
-        user_prompt: &str,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<String>> + Send>>> {
+    pub async fn process_prompt_stream(&self, user_prompt: &str) -> Result<StreamingResult> {
         trace!("Engine processing prompt (stream): '{}'", user_prompt);
 
         // TODO: Implement proper chat history management for the Coordinator
-        let history: Vec<ChatMessage> = vec![]; // Start with empty history for now
+        let user_message = CompletionRequest {
+            prompt: Message::User {
+                content: OneOrMany::one(UserContent::Text(Text {
+                    text: user_prompt.to_string(),
+                })),
+            },
+            preamble: None,
+            chat_history: vec![],
+            documents: vec![],
+            tools: vec![],
+            temperature: None,
+            max_tokens: None,
+            additional_params: None,
+        };
 
-        // Prepare the user message
-        let user_message = ChatMessage::user(user_prompt.to_string());
-
-        // Get model name using the getter
-        let model_name = self.ollama_client.default_model().to_string();
-
-        // Instantiate Coordinator using the client getter
-        // Need mutable coordinator to manage history internally during streaming
-        let mut coordinator = Coordinator::new(self.ollama_client.client(), model_name, history);
-
-        // Add tool functions directly
-        coordinator = coordinator.add_tool(Calculator);
-        coordinator = coordinator.add_tool(DateTime);
-
-        // TODO: Add configuration for Coordinator options
-        // coordinator = coordinator.options(...)
-        // TODO: Add debug flag from config
-        // coordinator = coordinator.debug(true);
-
-        // Call the new chat_stream method on the Coordinator
-        debug!("Sending prompt to Coordinator for streaming with tools...");
-        let stream = coordinator.chat_stream(vec![user_message]).await; // Pass new message
-
-        // Map the stream from Result<ChatCompletionChunk> to Result<String>
-        let result_stream = stream
-            .map_err(|e| Error::LLM(LLMError::Api(format!("Coordinator stream error: {}", e))))
-            .and_then(|result| async move {
-                let chunk = result?;
-                Ok(chunk.message.content)
-            });
+        let result_stream = self
+            .llm_client
+            .generate_stream(&user_message)
+            .await
+            .map_err(|e| Error::LLM(LLMError::Api(f!("Coordinator chat error: {}", e))))?;
 
         // TODO: Implement summarization for streamed responses if needed
 
-        Ok(Box::pin(result_stream))
+        Ok(result_stream)
     }
 }

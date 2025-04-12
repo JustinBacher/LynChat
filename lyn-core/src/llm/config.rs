@@ -1,10 +1,10 @@
 use serde::Deserialize;
 
-use super::OllamaConfig;
+use super::OllamaProviderConfig;
 
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct LLMConfig {
-    pub ollama: OllamaConfig,
+    pub ollama: OllamaProviderConfig,
 }
 
 #[derive(Debug, Deserialize, Clone, Default, PartialEq)] // Added PartialEq

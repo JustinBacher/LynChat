@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct OllamaConfig {
+pub struct OllamaProviderConfig {
     #[serde(default = "default_ollama_url")]
     pub url: String,
     #[serde(default = "default_ollama_port")]
@@ -10,7 +10,7 @@ pub struct OllamaConfig {
     pub model: String,
 }
 
-impl Default for OllamaConfig {
+impl Default for OllamaProviderConfig {
     fn default() -> Self {
         Self {
             url: default_ollama_url(),
