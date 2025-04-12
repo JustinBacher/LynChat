@@ -3,6 +3,7 @@ mod error;
 mod ollama;
 
 use serde::{Deserialize, Serialize};
+// Removed serde_json::Value import
 
 use crate::prelude::*;
 pub use config::{LLMConfig, LLMProviders};
@@ -50,7 +51,7 @@ pub trait LLMProvider: Send + Sync + Any {
     fn as_any(&self) -> &dyn Any;
 
     /// Sends a prompt to the LLM and returns the generated response.
-    async fn generate(&self, prompt: &Prompt) -> Result<LLMResponse>;
+    async fn generate(&self, prompt: &Prompt) -> Result<LLMResponse>; // Reverted signature
 
     /// Sends a prompt to the LLM and returns a stream of response chunks.
     async fn generate_stream(

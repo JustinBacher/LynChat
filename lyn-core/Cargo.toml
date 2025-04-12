@@ -37,7 +37,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 reqwest = { version = "0.12", features = ["json"] }
 
 # LLM Client Libraries
-ollama-rs = { version = "0.3", features = ["stream", "tool-implementations"] }
+# ollama-rs = { version = "0.3", features = ["stream", "tool-implementations"] } # Original dependency
+ollama-rs = { path = "../../ollama-rs/ollama-rs", features = ["stream", "tool-implementations"] } # Correct path to nested crate
 
 # Configuration
 config = { version = "0.15", features = ["toml"] }
@@ -50,6 +51,7 @@ url = { version = "2.5.4", features = ["serde"] }
 
 # JSON handling
 serde_json = "1.0"
+schemars = { version = "0.8", features = ["derive"] } # For tool schema generation
 
 # Date and Time handling
 chrono = { version = "0.4", features = ["serde"] }

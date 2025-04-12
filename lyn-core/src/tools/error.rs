@@ -1,4 +1,3 @@
-use super::{calculator::CalculatorError, datetime::DateTimeError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -14,10 +13,4 @@ pub enum ToolError {
 
     #[error("Tool registration failed: {0}")]
     RegistrationFailed(String),
-
-    #[error(transparent)]
-    Calculator(#[from] CalculatorError),
-
-    #[error(transparent)]
-    DateTime(#[from] DateTimeError),
 }

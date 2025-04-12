@@ -1,95 +1,73 @@
-mod error;
+use std::future::Future;
 
-use crate::{
-    prelude::*,
-    tools::{Tool, ToolArgs, ToolResult},
-};
-use async_trait::async_trait;
+use crate::prelude::*;
 use chrono::Local;
-use serde_json::json; // Added for json! macro
+use ollama_rs::generation::tools::Tool as OllamaRsTool;
+use schemars::JsonSchema;
+use serde::Deserialize;
 
-pub use error::DateTimeError;
-
-/// A tool to provide the current date and time.
-#[derive(Clone, Debug, Default)]
-pub struct DateTimeTool;
-
-impl DateTimeTool {
-    pub fn new() -> Self {
-        Self
-    }
+// Logic function
+async fn get_current_datetime() -> std::result::Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    info!("Executing date_time tool");
+    let now = Local::now();
+    let formatted_time = now.format("%Y-%m-%d %H:%M:%S %Z").to_string();
+    Ok(formatted_time)
 }
 
-#[async_trait]
-impl Tool for DateTimeTool {
-    fn name(&self) -> String {
-        String::from("date_time")
+// Parameters struct (empty for this tool)
+#[derive(Deserialize, Debug, JsonSchema)]
+pub struct DateTimeParams {}
+
+/// Wrapper struct to implement the ollama_rs Tool trait for date/time.
+#[derive(Debug, Clone, Default)]
+pub struct DateTime;
+
+impl OllamaRsTool for DateTime {
+    // Define the associated parameter type
+    type Params = DateTimeParams;
+
+    fn name() -> &'static str {
+        "date_time"
     }
 
-    fn description(&self) -> String {
-        String::from("Provides the current local date and time.")
+    fn description() -> &'static str {
+        "Provides the current local date and time. Takes no arguments."
     }
 
-    /// Returns the JSON schema for the date_time tool's arguments (none needed).
-    fn parameters_schema(&self) -> serde_json::Value {
-        json!({
-            "type": "object",
-            "properties": {}, // No properties needed
-            "required": []
-        })
-    }
-
-    async fn execute(&self, _args: ToolArgs) -> Result<ToolResult> {
-        // No argument parsing needed as per the schema.
-        let now = Local::now();
-        let formatted_time = now.format("%Y-%m-%d %H:%M:%S %Z").to_string();
-        Ok(formatted_time)
+    fn call(
+        &mut self,
+        _params: Self::Params, // Parameters are ignored
+    ) -> impl Future<Output = std::result::Result<String, Box<dyn std::error::Error + Send + Sync>>> {
+        // Call the actual logic function
+        get_current_datetime()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+    use ollama_rs::generation::tools::Tool as _; // Import trait for methods
 
     #[async_std::test]
-    async fn test_datetime_tool_execute() {
-        let tool = DateTimeTool::new();
-        let args = json!(null); // No arguments needed
-
-        let result = tool.execute(args).await;
+    async fn test_date_time_call() {
+        let mut tool = DateTime;
+        let params = DateTimeParams {}; // Empty params
+        let result = tool.call(params).await;
         assert!(result.is_ok());
 
         let time_string = result.unwrap();
-        // Basic check: Ensure the string is not empty and contains typical date/time chars.
         assert!(!time_string.is_empty());
-        assert!(time_string.contains('-')); // Date separator
-        assert!(time_string.contains(':')); // Time separator
-        assert!(time_string.contains(' ')); // Separator
+        assert!(time_string.contains('-'));
+        assert!(time_string.contains(':'));
+        assert!(time_string.contains(' '));
 
-        // We can't check the exact time, but we can check the format roughly.
-        // Example: 2024-04-09 23:05:00 EST
-        let re = regex::Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [A-Z]+$").unwrap();
-        // Note: The timezone abbreviation might vary (e.g., EST, EDT).
-        // A more robust check might parse the date string back using chrono.
-        // For now, this regex provides a basic format validation.
+        let re = regex::Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}").unwrap();
         assert!(re.is_match(&time_string));
-        // Commenting out regex check as timezone abbreviations can be tricky/system-dependent.
-        // The core functionality is getting *a* formatted time string.
     }
 
     #[test]
-    fn test_datetime_tool_name() {
-        let tool = DateTimeTool::new();
-        assert_eq!(tool.name(), "date_time");
-    }
-
-    #[test]
-    fn test_datetime_tool_description() {
-        let tool = DateTimeTool::new();
-        assert_eq!(
-            tool.description(),
-            "Provides the current local date and time."
-        );
+    fn test_date_time_static_info() {
+        assert_eq!(DateTime::name(), "date_time");
+        assert_eq!(DateTime::description(), "Provides the current local date and time. Takes no arguments.");
     }
 }

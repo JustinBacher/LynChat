@@ -3,13 +3,13 @@ mod config;
 
 use futures_util::{Stream, StreamExt};
 use ollama_rs::{
-    Ollama,
     generation::{
-        chat::{ChatMessage, MessageRole, request::ChatMessageRequest},
+        chat::{request::ChatMessageRequest, ChatMessage, MessageRole}, // Removed ToolCall import
         embeddings::request::GenerateEmbeddingsRequest,
     },
+    Ollama,
 };
-use std::{any::Any, pin::Pin}; // Import Any
+use std::{any::Any, pin::Pin};
 use url::Url;
 
 use crate::{
@@ -17,6 +17,7 @@ use crate::{
     prelude::*,
 };
 pub use config::OllamaConfig;
+// Ensure serde_json::Value is removed if not used elsewhere
 
 /// Client for interacting with an Ollama instance.
 #[derive(Debug, Clone)]
@@ -41,6 +42,16 @@ impl OllamaClient {
             client,
             default_model,
         })
+    }
+
+    /// Returns a clone of the underlying Ollama client instance.
+    pub fn client(&self) -> Ollama {
+        self.client.clone()
+    }
+
+    /// Returns the default model name configured for this client.
+    pub fn default_model(&self) -> &str {
+        &self.default_model
     }
 
     /// Generates embeddings for the given text using the specified model.
@@ -86,7 +97,6 @@ impl LLMProvider for OllamaClient {
 
     /// Sends a prompt (chat history) to the Ollama API and returns the response.
     async fn generate(&self, prompt: &Prompt) -> Result<LLMResponse> {
-        // Return local Result
         if prompt.messages.is_empty() {
             return Err(LLMError::Configuration(
                 "Prompt must contain at least one message".to_string(),
@@ -124,6 +134,7 @@ impl LLMProvider for OllamaClient {
     }
 
     /// Sends a prompt to Ollama and returns a stream of response chunks.
+    /// Note: Streaming with tool calls might require specific handling depending on the provider.
     async fn generate_stream(
         &self,
         prompt: &Prompt,
@@ -144,7 +155,6 @@ impl LLMProvider for OllamaClient {
             .map(|msg| {
                 let role = Self::map_role(&msg.role)?;
                 let mut message = ChatMessage::new(role, msg.content.clone());
-                message.tool_calls.append(other);
                 Ok(message)
             })
             .collect::<Result<Vec<_>>>()?;

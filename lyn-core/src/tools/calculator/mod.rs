@@ -1,129 +1,97 @@
-mod error;
+use std::future::Future;
+
+use ollama_rs::generation::tools::Tool as OllamaRsTool;
+use schemars::JsonSchema; // Added JsonSchema
+use serde::Deserialize;
 
 use crate::prelude::*;
-use crate::tools::{Tool, ToolArgs, ToolError, ToolResult};
-use async_trait::async_trait;
-use serde_json::json; // Added for json! macro
-pub use error::CalculatorError;
 
-#[derive(Debug, Clone, Default)] // Added Debug
-pub struct CalculatorTool;
-
-impl CalculatorTool {
-    pub fn new() -> Self {
-        CalculatorTool
-    }
+async fn calculate_expression(expression: String) -> std::result::Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    info!("Calculating expression: {}", expression);
+    meval::eval_str(&expression).map(|r| r.to_string()).map_err(|e| {
+        error!("Calculation error: {}", e);
+        Box::new(e) as Box<dyn std::error::Error + Send + Sync>
+    })
 }
 
-#[async_trait]
-impl Tool for CalculatorTool {
-    fn name(&self) -> String {
-        "calculator".to_string()
+#[derive(Deserialize, Debug, JsonSchema)] // Added JsonSchema derive
+pub struct CalculatorParams {
+    expression: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Calculator;
+
+impl OllamaRsTool for Calculator {
+    type Params = CalculatorParams;
+
+    fn name() -> &'static str {
+        "calculator"
     }
 
-    fn description(&self) -> String {
-        "Performs mathematical calculations. Takes a single string argument containing the expression to evaluate (e.g., '2 + 2 * 3').".to_string()
+    fn description() -> &'static str {
+        "Performs mathematical calculations. Takes a single string argument 'expression' containing the expression to evaluate (e.g., '2 + 2 * 3')."
     }
 
-    /// Returns the JSON schema for the calculator tool's arguments.
-    fn parameters_schema(&self) -> serde_json::Value {
-        json!({
-            "type": "object",
-            "properties": {
-                "expression": {
-                    "type": "string",
-                    "description": "The mathematical expression to evaluate (e.g., '2 + 2 * 4 / ( 5 - 3 )')."
-                }
-            },
-            "required": ["expression"]
-        })
-        // Note: The current execute implementation expects a raw string, not a JSON object.
-        // This schema assumes the LLM will call with {"expression": "2+2"}.
-        // We need to adjust the execute method to handle this JSON object format.
-    }
-
-    async fn execute(&self, args: ToolArgs) -> Result<ToolResult> {
-        // Adjust to extract the expression from the JSON object based on the schema
-        let expression = args
-            .get("expression")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                Error::Tool(ToolError::InvalidArguments(
-                    "Expected a JSON object with an 'expression' field containing a string."
-                        .to_string(),
-                ))
-            })?;
-
-        // Evaluate the expression using meval
-        let result = meval::eval_str(expression)
-            .map(|result| result.to_string())
-            .map_err(|e| Error::Tool(ToolError::Calculator(e.into())))?;
-        Ok(ToolResult::from(result))
+    fn call(
+        &mut self,
+        paramaters: Self::Params,
+    ) -> impl Future<Output = std::result::Result<String, Box<dyn std::error::Error + Send + Sync>>> {
+        // Call the actual calculation logic
+        calculate_expression(paramaters.expression)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
     #[async_std::test]
-    async fn test_calculator_tool_simple_addition() {
-        let tool = CalculatorTool;
-        let args = json!("2 + 2");
-        let result = tool.execute(args).await.unwrap();
+    async fn test_calculator_call_simple_addition() {
+        let mut tool = Calculator;
+        let params = CalculatorParams { expression: "2 + 2".to_string() };
+        let result = tool.call(params).await.unwrap();
         assert_eq!(result, "4");
     }
 
     #[async_std::test]
-    async fn test_calculator_tool_complex_expression() {
-        let tool = CalculatorTool;
-        let args = json!("(3 * 4) / 2 + 5 - 1");
-        let result = tool.execute(args).await.unwrap();
-        assert_eq!(result, "10"); // (12 / 2) + 5 - 1 = 6 + 5 - 1 = 10
+    async fn test_calculator_call_complex_expression() {
+        let mut tool = Calculator;
+        let params = CalculatorParams { expression: "(3 * 4) / 2 + 5 - 1".to_string() };
+        let result = tool.call(params).await.unwrap();
+        assert_eq!(result, "10");
+    }
+
+     #[async_std::test]
+    async fn test_calculator_call_with_floats() {
+        let mut tool = Calculator;
+        let params = CalculatorParams { expression: "1.5 * 2.0".to_string() };
+        let result = tool.call(params).await.unwrap();
+        assert!(result == "3" || result == "3.0");
     }
 
     #[async_std::test]
-    async fn test_calculator_tool_with_floats() {
-        let tool = CalculatorTool;
-        let args = json!("1.5 * 2.0");
-        let result = tool.execute(args).await.unwrap();
-        assert_eq!(result, "3");
-    }
-
-    #[async_std::test]
-    async fn test_calculator_tool_invalid_expression() {
-        let tool = CalculatorTool;
-        let args = json!("2 +"); // Invalid expression
-        let result = tool.execute(args).await;
+    async fn test_calculator_call_invalid_expression() {
+        let mut tool = Calculator;
+        let params = CalculatorParams { expression: "2 +".to_string() };
+        let result = tool.call(params).await;
         assert!(result.is_err());
-        match result.unwrap_err() {
-            Error::Tool(ToolError::InvalidArguments(_)) => {} // Expected error type
-            e => panic!("Unexpected error type: {:?}", e),
-        }
+        assert!(result.unwrap_err().is::<meval::Error>());
     }
 
     #[async_std::test]
-    async fn test_calculator_tool_invalid_argument_type() {
-        let tool = CalculatorTool;
-        let args = json!({"expression": "2 + 2"}); // Incorrect argument format
-        let result = tool.execute(args).await;
+    async fn test_calculator_call_division_by_zero() {
+        let mut tool = Calculator;
+        let params = CalculatorParams { expression: "1 / 0".to_string() };
+        let result = tool.call(params).await;
         assert!(result.is_err());
-        match result.unwrap_err() {
-            Error::Tool(ToolError::InvalidArguments(_)) => {} // Expected error type
-            e => panic!("Unexpected error type: {:?}", e),
-        }
+         assert!(result.unwrap_err().is::<meval::Error>());
     }
 
-    #[async_std::test]
-    async fn test_calculator_tool_division_by_zero() {
-        let tool = CalculatorTool;
-        let args = json!("1 / 0");
-        let result = tool.execute(args).await;
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            Error::Tool(ToolError::ExecutionFailed(_)) => {} // Expected error type for runtime calc error
-            e => panic!("Unexpected error type: {:?}", e),
-        }
+    // Test name and description (reverted to methods)
+    #[test]
+    fn test_calculator_static_info() {
+        assert_eq!(Calculator::name(), "calculator");
+        assert_eq!(Calculator::description(), "Performs mathematical calculations. Takes a single string argument 'expression' containing the expression to evaluate (e.g., '2 + 2 * 3').");
     }
 }

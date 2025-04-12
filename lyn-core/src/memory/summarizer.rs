@@ -7,14 +7,13 @@ use crate::{
 };
 
 /// Summarizes a user prompt and the corresponding LLM response.
-pub async fn summarize_interaction<L, P>(
-    llm_provider: &L,
+// Simplified signature to accept any type implementing LLMProvider directly.
+// Added Sync bound as generate is async and called across .await
+pub async fn summarize_interaction(
+    llm_provider: &(dyn LLMProvider + Sync), // Accept trait object directly
     user_prompt: &str,
     llm_response: &str,
 ) -> Result<String>
-where
-    L: AsRef<P>,
-    P: LLMProvider + ?Sized,
 {
     // TODO: Make this prompt template configurable (LYN-6 requirement)
     let summarization_prompt_content = f!(
@@ -34,7 +33,8 @@ where
     info!("Requesting summarization from LLM...");
     debug!("Summarization prompt: {:?}", summarization_prompt);
 
-    match llm_provider.as_ref().generate(&summarization_prompt).await {
+    // Use llm_provider directly, no need for as_ref()
+    match llm_provider.generate(&summarization_prompt).await {
         Ok(response) => {
             info!("Summarization successful.");
             debug!("Summary received: {}", response.content);

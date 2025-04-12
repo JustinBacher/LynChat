@@ -3,8 +3,8 @@
 // Generic Error type for the entire application
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("Configuration error: {0}")]
-    Config(#[from] crate::config::ConfigError), // Corrected path
+    #[error(transparent)]
+    Config(#[from] crate::config::ConfigError),
 
     #[error("LLM error: {0}")]
     LLM(#[from] crate::llm::LLMError),
@@ -18,16 +18,16 @@ pub enum Error {
     #[error("Requested tool not found: {0}")]
     ToolNotFound(String),
 
-    #[error("Tool error: {0}")] // Keep the original Tool error for specific tool impl errors
+    #[error("Tool error: {0}")]
     Tool(#[from] crate::tools::ToolError),
 
-    #[error(transparent)]
+    #[error("IO error: {0}")] // Removed transparent
     Io(#[from] std::io::Error),
 
-    #[error(transparent)]
+    #[error("Reqwest error: {0}")] // Removed transparent
     Reqwest(#[from] reqwest::Error),
 
-    #[error(transparent)]
+    #[error("URL parse error: {0}")] // Removed transparent
     Url(#[from] url::ParseError),
 
     #[error("An unexpected error occurred: {0}")]
