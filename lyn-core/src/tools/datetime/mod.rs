@@ -3,10 +3,7 @@
 mod error;
 
 use chrono::{Local, Utc};
-use rig::{
-    completion::ToolDefinition,
-    tool::{Tool, ToolEmbedding},
-};
+use rig::{completion::ToolDefinition, tool::Tool};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -83,34 +80,5 @@ impl Tool for DateTime {
                 .format(args.format.as_deref().unwrap_or("%Y-%m-%d %H:%M:%S %Z"))
                 .to_string())
         }
-    }
-}
-
-impl ToolEmbedding for DateTime {
-    type InitError = DateTimeError;
-    type Context = DateTimeParams;
-    type State = ();
-
-    fn embedding_docs(&self) -> Vec<String> {
-        vec![
-            "A tool that returns the current date and time".to_string(),
-            "Get today's date or current time information".to_string(),
-            "Retrieve time in UTC or local timezone".to_string(),
-            "Format dates and times in different patterns".to_string(),
-        ]
-    }
-
-    fn context(&self) -> Self::Context {
-        DateTimeParams {
-            format: None,
-            utc: false,
-        }
-    }
-
-    fn init(
-        _state: Self::State,
-        _context: Self::Context,
-    ) -> std::result::Result<Self, Self::InitError> {
-        Ok(Self)
     }
 }

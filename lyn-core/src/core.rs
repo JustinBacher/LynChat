@@ -14,7 +14,7 @@ use rig::{
 use crate::{
     config::{self, AppConfig},
     llm::{LLMError, LLMProvider, LLMProviders, create_llm_provider},
-    memory::{MemoryClient, qdrant::QdrantMemoryClient, summarizer::summarize_interaction},
+    memory::summarize_interaction,
     prelude::*,
     tools::{Calculator, DateTime, ToolCategory, ToolRegistry},
 };
@@ -28,7 +28,7 @@ pub struct Engine {
     // Store OllamaClient directly for Coordinator usage
     llm_client: Arc<dyn LLMProvider>,
     #[allow(dead_code)] // TODO: Remove this once memory client is implemented
-    memory_client: Arc<dyn MemoryClient>,
+    embedding_client: Arc<dyn LLMProvider>,
     // Removed tools field - tools will be added to Coordinator dynamically
     // tool_registry: ToolRegistry,
 }
@@ -42,24 +42,24 @@ impl Engine {
         info!("Initializing Lyn Engine...");
 
         // --- Load Configuration ---
-        let app_config = Arc::new(config::load_config()?);
+        let config = Arc::new(config::load_config()?);
         info!("Configuration loaded successfully.");
-        debug!("Loaded config: {:?}", app_config);
+        debug!("Loaded config: {:?}", config);
 
-        // --- Initialize Ollama Client ---
-        // Assuming Ollama is the only provider for now
-        if app_config.provider != LLMProviders::Ollama {
+        if config.provider != LLMProviders::Ollama {
             // Or handle other providers if logic is added later
             return Err(Error::Config(crate::config::ConfigError::ValidationError(
                 "Configuration Error: Only Ollama provider is currently supported for tool usage."
                     .to_string(),
             )));
         }
-        let llm_client = create_llm_provider(&app_config.provider, &app_config.provider_configs)?;
+        let llm_client = create_llm_provider(Arc::clone(&config))?;
 
-        // --- Initialize Memory (Qdrant) Client ---
-        let memory_client = Arc::new(QdrantMemoryClient::new(&app_config.vector_db).await?);
-        info!("Memory client (Qdrant) initialized.");
+        let embedding_client = if config.embedding_provider == config.provider {
+            llm_client.clone()
+        } else {
+            create_llm_provider(Arc::clone(&config))?
+        };
 
         // Tools are no longer stored in Engine, they will be added to Coordinator in process_prompt
         let mut tool_registry = ToolRegistry::new();
@@ -69,11 +69,9 @@ impl Engine {
         tool_registry.register(DateTime, ToolCategory::Utilities);
 
         Ok(Self {
-            config: app_config,
+            config,
             llm_client,
-            memory_client,
-            // tools field removed
-            // tool_registry,
+            embedding_client,
         })
     }
 

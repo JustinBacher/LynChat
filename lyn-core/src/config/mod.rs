@@ -4,9 +4,8 @@ mod error;
 
 use std::{fs, path::PathBuf};
 
-use crate::memory::qdrant::VectorDbConfig;
 use crate::{
-    llm::{LLMConfig, LLMProviders},
+    llm::{LLMConfig, LLMProviders, VectorDbConfig},
     prelude::*,
 };
 use serde::Deserialize;
@@ -14,16 +13,22 @@ use serde::Deserialize;
 pub use error::ConfigError;
 
 /// The main application configuration structure.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Default)]
 pub struct AppConfig {
     #[serde(default)]
     pub provider_configs: LLMConfig,
 
     #[serde(default)]
-    pub vector_db: VectorDbConfig,
+    pub embedding_provider: LLMProviders,
 
     #[serde(default)]
     pub provider: LLMProviders,
+
+    #[serde(default)]
+    pub embedding_provider_configs: LLMConfig,
+
+    #[serde(default)]
+    pub vector_db: VectorDbConfig,
 }
 
 const CONFIG_DIR_NAME: &str = "lyn";

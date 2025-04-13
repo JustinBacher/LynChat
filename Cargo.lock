@@ -1665,12 +1665,14 @@ dependencies = [
  "dirs",
  "futures",
  "futures-util",
+ "itertools 0.14.0",
  "meval",
  "ndarray",
  "qdrant-client",
  "regex",
  "reqwest",
  "rig-core",
+ "rig-qdrant",
  "schemars",
  "serde",
  "serde_json",
@@ -2509,6 +2511,19 @@ dependencies = [
  "serde_json",
  "thiserror 1.0.69",
  "tracing",
+]
+
+[[package]]
+name = "rig-qdrant"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5f9a14ceabed5e03131028b9e04474ea692d66eee0ba35d33a7d1efe2d572f4"
+dependencies = [
+ "qdrant-client",
+ "rig-core",
+ "serde",
+ "serde_json",
+ "uuid",
 ]
 
 [[package]]
