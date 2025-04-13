@@ -1,12 +1,14 @@
 //! Core application logic.
 
+use std::{pin::Pin, sync::Arc};
+
+use futures::Stream;
 use rig::{
     OneOrMany,
     completion::{
         CompletionRequest, Message,
         message::{Text, UserContent},
     },
-    streaming::StreamingResult,
 };
 
 use crate::{
@@ -14,9 +16,8 @@ use crate::{
     llm::{LLMError, LLMProvider, LLMProviders, create_llm_provider},
     memory::{MemoryClient, qdrant::QdrantMemoryClient, summarizer::summarize_interaction},
     prelude::*,
+    tools::{Calculator, DateTime, ToolCategory, ToolRegistry},
 };
-use futures_util::TryStreamExt;
-use std::sync::Arc;
 
 // Removed old constants and ToolCallRequest struct
 
@@ -29,6 +30,7 @@ pub struct Engine {
     #[allow(dead_code)] // TODO: Remove this once memory client is implemented
     memory_client: Arc<dyn MemoryClient>,
     // Removed tools field - tools will be added to Coordinator dynamically
+    // tool_registry: ToolRegistry,
 }
 
 impl Engine {
@@ -60,12 +62,18 @@ impl Engine {
         info!("Memory client (Qdrant) initialized.");
 
         // Tools are no longer stored in Engine, they will be added to Coordinator in process_prompt
+        let mut tool_registry = ToolRegistry::new();
+
+        // Register tools with their categories
+        tool_registry.register(Calculator, ToolCategory::Utilities);
+        tool_registry.register(DateTime, ToolCategory::Utilities);
 
         Ok(Self {
             config: app_config,
             llm_client,
             memory_client,
             // tools field removed
+            // tool_registry,
         })
     }
 
@@ -74,45 +82,37 @@ impl Engine {
     pub async fn process_prompt(&self, user_prompt: &str) -> Result<String> {
         trace!("Engine processing prompt: '{}'", user_prompt);
 
+        // let _toolset = self.tool_registry.as_rig_toolset();
+
         // TODO: Implement proper chat history management for the Coordinator
-        let user_message = CompletionRequest {
-            prompt: Message::User {
-                content: OneOrMany::one(UserContent::Text(Text {
-                    text: user_prompt.to_string(),
-                })),
-            },
-            preamble: None,
-            chat_history: vec![],
-            documents: vec![],
-            tools: vec![],
-            temperature: None,
-            max_tokens: None,
-            additional_params: None,
-        };
+        let user_message = self.llm_client.create_prompt(user_prompt.into());
 
         // Run the chat interaction via the Coordinator
         debug!("Sending prompt to Coordinator with tools...");
         let response = self
             .llm_client
-            .generate(&user_message)
+            .generate(user_message)
             .await
             .map_err(|e| Error::LLM(LLMError::Api(f!("Coordinator chat error: {}", e))))?; // Map error
 
-        let response_content = response.raw_response;
+        let response_content = response;
 
         summarize_interaction(
             &*self.llm_client, // This coerces to &dyn LLMProvider
             user_prompt,
             &response_content, // Pass &str directly
         )
-        .await;
+        .await?;
 
         Ok(response_content)
     }
 
     /// Processes a user prompt, handling potential tool calls using Ollama Coordinator,
     /// and returning the final response as a stream.
-    pub async fn process_prompt_stream(&self, user_prompt: &str) -> Result<StreamingResult> {
+    pub async fn process_prompt_stream(
+        &self,
+        user_prompt: &str,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<String>> + Send>>> {
         trace!("Engine processing prompt (stream): '{}'", user_prompt);
 
         // TODO: Implement proper chat history management for the Coordinator
@@ -133,7 +133,7 @@ impl Engine {
 
         let result_stream = self
             .llm_client
-            .generate_stream(&user_message)
+            .generate_stream(user_message)
             .await
             .map_err(|e| Error::LLM(LLMError::Api(f!("Coordinator chat error: {}", e))))?;
 

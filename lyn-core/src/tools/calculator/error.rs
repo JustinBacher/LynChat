@@ -1,4 +1,6 @@
-#[derive(thiserror::Error, Debug)]
+use thiserror::Error;
+
+#[derive(Error, Debug)]
 pub enum CalculatorError {
     #[error("Calculation failed: {0}")]
     Calculation(String),

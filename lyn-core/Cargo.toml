@@ -69,6 +69,8 @@ regex = "1.11.1"
 
 # Vector math
 ndarray = "0.16"
+async-stream = "0.3.6"
+futures = "0.3.31"
 
 [dev-dependencies]
 approx = "0.5" # For floating point comparisons in tests

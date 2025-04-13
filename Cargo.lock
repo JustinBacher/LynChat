@@ -1658,10 +1658,12 @@ version = "0.1.0"
 dependencies = [
  "approx",
  "async-std",
+ "async-stream",
  "async-trait",
  "chrono",
  "config",
  "dirs",
+ "futures",
  "futures-util",
  "meval",
  "ndarray",

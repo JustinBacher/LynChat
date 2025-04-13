@@ -146,7 +146,9 @@ async fn run_event_loop<B: Backend>(
                                 if prompt_tx.send(prompt_text).await.is_err() {
                                     error!("Failed to send prompt to engine task: channel closed.");
                                     // Update status instead of breaking
-                                    app_state.status = "Error: Could not send prompt to engine. Please restart.".to_string();
+                                    app_state.status =
+                                        "Error: Could not send prompt to engine. Please restart."
+                                            .to_string();
                                     // Keep the loop running
                                 }
                             }
@@ -183,10 +185,16 @@ async fn run_event_loop<B: Backend>(
                 // Append chunk to accumulator
                 app_state.current_response.push_str(&chunk);
                 // If it's the first chunk, add a new message entry
-                if app_state.messages.last().map_or(true, |m| m.starts_with("> ")) {
-                     app_state.messages.push(format!("Assistant: {}", app_state.current_response));
+                if app_state
+                    .messages
+                    .last()
+                    .is_none_or(|m| m.starts_with("> "))
+                {
+                    app_state
+                        .messages
+                        .push(format!("Assistant: {}", app_state.current_response));
                 } else if let Some(last_message) = app_state.messages.last_mut() {
-                     // Otherwise, update the last message (which should be the assistant's)
+                    // Otherwise, update the last message (which should be the assistant's)
                     *last_message = format!("Assistant: {}", app_state.current_response);
                 }
                 app_state.status = "Streaming...".to_string();
@@ -198,7 +206,7 @@ async fn run_event_loop<B: Backend>(
             Ok(StreamEvent::End) => {
                 app_state.current_response.clear(); // Clear accumulator
                 app_state.status = "Ready. Type your prompt and press Enter.".to_string();
-                 // Auto-scroll logic (repeat as after chunk): Use u16::MAX
+                // Auto-scroll logic (repeat as after chunk): Use u16::MAX
                 if app_state.is_auto_scrolling {
                     app_state.scroll_offset = u16::MAX;
                 }
@@ -208,8 +216,8 @@ async fn run_event_loop<B: Backend>(
                 app_state.messages.push(format!("Error: {}", e)); // Push String directly
                 app_state.current_response.clear(); // Clear accumulator on error too
                 app_state.status = "Error occurred. Ready.".to_string();
-                 // Auto-scroll logic for error message
-                 if app_state.is_auto_scrolling {
+                // Auto-scroll logic for error message
+                if app_state.is_auto_scrolling {
                     app_state.scroll_offset = u16::MAX;
                 }
             }

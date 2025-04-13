@@ -1,19 +1,12 @@
-//! Defines tools available to the Lyn AI assistant and related utilities.
-//! Tools now conform to the `ollama_rs::generation::tools::Tool` trait.
+//! Tool system for Lyn AI assistant based on rig's Tool capabilities.
 
-// Module declarations for individual tools
-pub mod calculator;
-pub mod datetime;
-// pub mod discovery; // Removed discovery module
-pub mod error;
+mod calculator;
+mod datetime;
+mod error;
+mod registry;
 
-// Re-exports the concrete tool structs and the error type
-pub use self::{
-    calculator::Calculator, // Corrected export
-    datetime::DateTime,     // Corrected export
-    error::ToolError,
-};
-
-// Note: The internal `Tool` trait, `ToolRegistry`, and `OllamaToolAdapter`
-// have been removed as we are now directly implementing the
-// `ollama_rs::generation::tools::Tool` trait in each tool module.
+// Re-exports
+pub use calculator::Calculator;
+pub use datetime::DateTime;
+pub use error::ToolError;
+pub use registry::{ToolCategory, ToolRegistry};

@@ -1,73 +1,116 @@
-use std::future::Future;
+//! DateTime tool for retrieving current date and time
+
+mod error;
+
+use chrono::{Local, Utc};
+use rig::{
+    completion::ToolDefinition,
+    tool::{Tool, ToolEmbedding},
+};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 use crate::prelude::*;
-use chrono::Local;
-use ollama_rs::generation::tools::Tool as OllamaRsTool;
-use schemars::JsonSchema;
-use serde::Deserialize;
+pub(super) use error::DateTimeError;
 
-// Logic function
-async fn get_current_datetime() -> std::result::Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    info!("Executing date_time tool");
-    let now = Local::now();
-    let formatted_time = now.format("%Y-%m-%d %H:%M:%S %Z").to_string();
-    Ok(formatted_time)
-}
-
-// Parameters struct (empty for this tool)
-#[derive(Deserialize, Debug, JsonSchema)]
-pub struct DateTimeParams {}
-
-/// Wrapper struct to implement the ollama_rs Tool trait for date/time.
-#[derive(Debug, Clone, Default)]
+/// DateTime tool for retrieving current date and time
+#[derive(Debug, Clone)]
 pub struct DateTime;
 
-impl OllamaRsTool for DateTime {
-    // Define the associated parameter type
-    type Params = DateTimeParams;
-
-    fn name() -> &'static str {
-        "date_time"
-    }
-
-    fn description() -> &'static str {
-        "Provides the current local date and time. Takes no arguments."
-    }
-
-    fn call(
-        &mut self,
-        _params: Self::Params, // Parameters are ignored
-    ) -> impl Future<Output = std::result::Result<String, Box<dyn std::error::Error + Send + Sync>>> {
-        // Call the actual logic function
-        get_current_datetime()
+impl DateTime {
+    pub async fn execute(&self, params: DateTimeParams) -> Result<String> {
+        if params.utc {
+            Ok(Utc::now()
+                .format(params.format.as_deref().unwrap_or("%Y-%m-%d %H:%M:%S %Z"))
+                .to_string())
+        } else {
+            Ok(Local::now()
+                .format(params.format.as_deref().unwrap_or("%Y-%m-%d %H:%M:%S %Z"))
+                .to_string())
+        }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ollama_rs::generation::tools::Tool as _; // Import trait for methods
+/// Parameters for the DateTime tool
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+pub struct DateTimeParams {
+    /// Format to use for the date/time output (optional)
+    #[serde(default)]
+    pub format: Option<String>,
 
-    #[async_std::test]
-    async fn test_date_time_call() {
-        let mut tool = DateTime;
-        let params = DateTimeParams {}; // Empty params
-        let result = tool.call(params).await;
-        assert!(result.is_ok());
+    /// Whether to use UTC instead of local time
+    #[serde(default)]
+    pub utc: bool,
+}
 
-        let time_string = result.unwrap();
-        assert!(!time_string.is_empty());
-        assert!(time_string.contains('-'));
-        assert!(time_string.contains(':'));
-        assert!(time_string.contains(' '));
+impl Tool for DateTime {
+    const NAME: &'static str = "datetime";
 
-        let re = regex::Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}").unwrap();
-        assert!(re.is_match(&time_string));
+    type Error = DateTimeError;
+    type Args = DateTimeParams;
+    type Output = String;
+
+    async fn definition(&self, _prompt: String) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::NAME.to_string(),
+            description:
+                "Retrieves the current date and time. Can provide formatted output and support for UTC time."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "format": {
+                        "type": "string",
+                        "description": "Optional format string for the date/time output (e.g., %Y-%m-%d for YYYY-MM-DD)",
+                    },
+                    "utc": {
+                        "type": "boolean",
+                        "description": "Whether to use UTC instead of local time",
+                    }
+                }
+            }),
+        }
     }
 
-    #[test]
-    fn test_date_time_static_info() {
-        assert_eq!(DateTime::name(), "date_time");
-        assert_eq!(DateTime::description(), "Provides the current local date and time. Takes no arguments.");
+    async fn call(&self, args: Self::Args) -> std::result::Result<Self::Output, Self::Error> {
+        if args.utc {
+            Ok(Utc::now()
+                .format(args.format.as_deref().unwrap_or("%Y-%m-%d %H:%M:%S %Z"))
+                .to_string())
+        } else {
+            Ok(Local::now()
+                .format(args.format.as_deref().unwrap_or("%Y-%m-%d %H:%M:%S %Z"))
+                .to_string())
+        }
+    }
+}
+
+impl ToolEmbedding for DateTime {
+    type InitError = DateTimeError;
+    type Context = DateTimeParams;
+    type State = ();
+
+    fn embedding_docs(&self) -> Vec<String> {
+        vec![
+            "A tool that returns the current date and time".to_string(),
+            "Get today's date or current time information".to_string(),
+            "Retrieve time in UTC or local timezone".to_string(),
+            "Format dates and times in different patterns".to_string(),
+        ]
+    }
+
+    fn context(&self) -> Self::Context {
+        DateTimeParams {
+            format: None,
+            utc: false,
+        }
+    }
+
+    fn init(
+        _state: Self::State,
+        _context: Self::Context,
+    ) -> std::result::Result<Self, Self::InitError> {
+        Ok(Self)
     }
 }

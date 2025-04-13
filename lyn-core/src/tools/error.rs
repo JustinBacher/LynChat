@@ -1,3 +1,5 @@
+use super::calculator::CalculatorError;
+use rig::tool::ToolError as RigToolError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -13,4 +15,10 @@ pub enum ToolError {
 
     #[error("Tool registration failed: {0}")]
     RegistrationFailed(String),
+
+    #[error(transparent)]
+    Tool(#[from] RigToolError),
+
+    #[error(transparent)]
+    Calculator(#[from] CalculatorError),
 }

@@ -1,4 +1,7 @@
-#[derive(thiserror::Error, Debug)]
+use rig::completion::CompletionError;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
 pub enum LLMError {
     #[error("Failed to connect to LLM provider: {0}")]
     Connection(String),
@@ -16,5 +19,11 @@ pub enum LLMError {
     Config(String),
 
     #[error("Error while embedding {0}. {1}")]
-    Embedding(String, String)
+    Embedding(String, String),
+
+    #[error("Other error: {0}")]
+    Other(String),
+
+    #[error("Receivec unexpected response {0}")]
+    Response(#[from] CompletionError),
 }
