@@ -35,21 +35,21 @@
   }
 </script>
 
-<div class="flex flex-col items-start mb-4">
+<div class="mb-4 flex flex-col items-start">
   <div class="flex items-start">
     <div
-      class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center mr-2 flex-shrink-0"
+      class="bg-primary mr-2 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-white"
     >
       L
     </div>
     <div>
-      <div class="ai-message">
+      <div class="bg-ai-bubble shadow-card rounded-lg p-4">
         <p class="m-0">{text}</p>
       </div>
 
       {#if thoughts}
         <button
-          class="text-xs text-primary hover:text-primary-dark mt-1 ml-2 focus:outline-none"
+          class="text-primary hover:text-primary-dark mt-1 ml-2 text-xs focus:outline-none"
           on:click={toggleThoughts}
         >
           {showThoughts ? "Hide thinking" : "Show thinking"}
@@ -58,7 +58,9 @@
 
       {#if showThoughts && thoughts}
         <div in:fade={{ duration: 150 }}>
-          <ThoughtProcess text={thoughts} />
+          <div class="bg-thought-bubble mt-2 rounded-lg p-3 text-sm italic">
+            <ThoughtProcess text={thoughts} />
+          </div>
         </div>
       {/if}
 
@@ -71,7 +73,7 @@
           />
         </div>
       {/each}
-      <span class="text-xs text-gray-500 mt-1 block"
+      <span class="mt-1 block text-xs text-gray-500"
         >{formatTime(timestamp)}</span
       >
     </div>

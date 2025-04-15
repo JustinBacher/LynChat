@@ -78,15 +78,16 @@
   })
 </script>
 
+<!-- ui/src/components/Chat/ChatContainer.svelte -->
 <div class="flex h-full flex-col">
   <!-- Chat Messages Area -->
   <div
-    class="flex-1 overflow-y-auto p-4"
+    class="bg-background flex-1 overflow-y-auto p-4"
     bind:this={chatContainer}
     onscroll={handleScroll}
   >
-    {#each messages as message, i (i)}
-      <div class="blur-focus" style="animation-delay: {i * 100}ms">
+    {#each messages as message, i (message.id)}
+      <div class="animate-blur-focus" style="animation-delay: {i * 100}ms">
         {#if message.type === "user"}
           <UserMessage text={message.text} timestamp={message.timestamp} />
         {:else if message.type === "ai"}
@@ -99,14 +100,6 @@
         {/if}
       </div>
     {/each}
-
-    {#if messages.length === 0}
-      <div
-        class="blur-focus flex h-full items-center justify-center text-gray-400"
-      >
-        <p class="text-center">Start a conversation with Lyn</p>
-      </div>
-    {/if}
   </div>
 
   <!-- Input Area -->
@@ -116,7 +109,12 @@
       on:securityAlert={handleSecurityAlert}
     />
   </div>
-
-  <!-- Security Mascot -->
+  <!-- Input Area -->
   <SecurityMascot bind:detectedPII={$detectedPII} />
+  <div class="border-t bg-white p-4">
+    <MessageInput
+      on:message={(e) => addUserMessage(e.detail)}
+      on:securityAlert={handleSecurityAlert}
+    />
+  </div>
 </div>

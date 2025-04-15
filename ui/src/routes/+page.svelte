@@ -5,13 +5,12 @@
   import ChatContainer from "../components/Chat/ChatContainer.svelte"
   import SettingsMenu from "../components/UI/SettingsMenu.svelte"
   import Hamburger from "../components/UI/Hamburger.svelte"
-  import type { Message } from "../stores/chat"
 
   let showLoader: boolean = true
   let settingsOpen: boolean = false
 
-  // Sample messages for demo
-  const sampleMessages: Message[] = [
+  // Sample messages for the demo
+  const sampleMessages = [
     {
       id: "1",
       type: "user",
@@ -23,10 +22,10 @@
       type: "ai",
       text: "Of course! I'd be happy to help with a calculation. What would you like to calculate?",
       timestamp: new Date(Date.now() - 45000), // 45 seconds ago
+      thoughts: "I should be helpful and direct with calculation requests.",
     },
   ]
 
-  // Remove loader after animation completes
   onMount(() => {
     setTimeout(() => {
       showLoader = false
@@ -43,25 +42,25 @@
     <LoadingAnimation duration={1500} />
   {/if}
 
-  <div class="flex flex-col h-screen bg-background">
+  <div class="bg-background flex h-screen flex-col">
     <!-- Header -->
     <header
-      class="bg-white border-b p-3 flex justify-between items-center shadow-sm"
+      class="flex items-center justify-between border-b bg-white p-3 shadow-sm"
     >
       <div class="flex items-center">
         <div
-          class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center mr-2"
+          class="bg-primary mr-2 flex h-8 w-8 items-center justify-center rounded-full text-white"
         >
           L
         </div>
-        <h1 class="text-lg font-medium m-0">Lyn AI Assistant</h1>
+        <h1 class="m-0 text-lg font-medium">Lyn AI Assistant</h1>
       </div>
 
       <Hamburger isOpen={settingsOpen} on:toggle={toggleSettings} />
     </header>
 
     <!-- Main Content -->
-    <main class="flex-1 overflow-hidden h-full">
+    <main class="h-full flex-1 overflow-hidden">
       <ChatContainer messages={sampleMessages} />
     </main>
 
