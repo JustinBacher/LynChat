@@ -3,7 +3,10 @@
 mod error;
 
 use chrono::{Local, Utc};
-use rig::{completion::ToolDefinition, tool::Tool};
+use rig::{
+    completion::ToolDefinition,
+    tool::{Tool, ToolEmbedding},
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -80,5 +83,27 @@ impl Tool for DateTime {
                 .format(args.format.as_deref().unwrap_or("%Y-%m-%d %H:%M:%S %Z"))
                 .to_string())
         }
+    }
+}
+
+impl ToolEmbedding for DateTime {
+    type InitError = DateTimeError;
+    type Context = ();
+    type State = ();
+
+    fn embedding_docs(&self) -> Vec<String> {
+        vec![
+            "Calculator for mathematical expressions".to_string(),
+            "Math calculations and arithmetic operations".to_string(),
+            "Calculate numbers, evaluate expressions, perform math".to_string(),
+            "Add, subtract, multiply, divide numbers".to_string(),
+            "Trigonometric functions, logarithms, square roots".to_string(),
+        ]
+    }
+
+    fn context(&self) -> Self::Context {}
+
+    fn init(_state: Self::State, _context: Self::Context) -> StdResult<Self, Self::InitError> {
+        Ok(DateTime)
     }
 }

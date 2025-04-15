@@ -39,6 +39,7 @@ pub enum Error {
 
 // Generic Result type using the application's Error type
 pub type Result<T> = std::result::Result<T, Error>;
+pub type StdResult<T, E> = std::result::Result<T, E>;
 
 // Geneneric Wrapper type
 #[derive(Debug, Clone)]

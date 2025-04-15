@@ -4,7 +4,10 @@ mod error;
 #[cfg(test)]
 mod tests;
 
-use rig::{completion::ToolDefinition, tool::Tool};
+use rig::{
+    completion::ToolDefinition,
+    tool::{Tool, ToolEmbedding},
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -62,5 +65,27 @@ impl Tool for Calculator {
     }
     async fn call(&self, args: Self::Args) -> std::result::Result<Self::Output, Self::Error> {
         meval::eval_str(&args.expression).map_err(CalculatorError::from)
+    }
+}
+
+impl ToolEmbedding for Calculator {
+    type InitError = CalculatorError;
+    type Context = (); // No context needed for Calculator
+    type State = (); // No state needed for Calculator
+
+    fn embedding_docs(&self) -> Vec<String> {
+        vec![
+            "Calculator for mathematical expressions".to_string(),
+            "Math calculations and arithmetic operations".to_string(),
+            "Calculate numbers, evaluate expressions, perform math".to_string(),
+            "Add, subtract, multiply, divide numbers".to_string(),
+            "Trigonometric functions, logarithms, square roots".to_string(),
+        ]
+    }
+
+    fn context(&self) -> Self::Context {}
+
+    fn init(_state: Self::State, _context: Self::Context) -> StdResult<Self, Self::InitError> {
+        Ok(Calculator)
     }
 }
