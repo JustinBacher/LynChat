@@ -60,8 +60,10 @@
     </header>
 
     <!-- Main Content -->
-    <main class="h-full flex-1 overflow-hidden">
-      <ChatContainer messages={sampleMessages} />
+    <main class="bg-chat-pattern h-full flex-1 overflow-hidden">
+      <div class="container mx-auto h-full max-w-4xl p-4">
+        <ChatContainer messages={sampleMessages} />
+      </div>
     </main>
 
     <!-- Settings Menu (conditionally rendered) -->

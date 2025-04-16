@@ -3,19 +3,35 @@
 # License: MIT OR Apache-2.0
 
 [workspace]
-resolver = "2" # Use the latest resolver
-members = [
-    "lyn-core",
-    "lyn-cli",
-    # Add other crates like lyn-gui, lyn-web later
-]
+resolver = "2"                                                                         # Use the latest resolver
+members = ["common", "cli", "desktop"]
+description = "Core engine for the Lyn AI assistant (LLM interaction, memory, tools)."
+readme = "../README.md"
+homepage = "https://github.com/your-repo/lyn"                                          # TODO: Update with actual repo URL
+repository = "https://github.com/your-repo/lyn"                                        # TODO: Update with actual repo URL
+license = "MIT OR Apache-2.0"
+keywords = ["ai", "assistant", "llm", "privacy", "local", "core"]
+categories = ["libraries", "science::ai"]
 
 # Optional: Define shared dependencies or profiles for the workspace
-# [workspace.dependencies]
-# async-std = { version = "1.12", features = ["attributes", "unstable"] }
-# thiserror = "1.0"
-# tracing = "0.1"
-# ... other common dependencies ...
+[workspace.dependencies]
+async-channel = "2.3"
+async-std = { version = "1.12", features = [
+    "attributes",
+    "unstable",
+    "tokio1",
+] }
+async-stream = "0.3.6"
+async-trait = "0.1"
+futures = "0.3.31"
+futures-util = "0.3"
+itertools = "0.14.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.8", features = ["v4", "serde"] }
 
 [profile.release]
 lto = true

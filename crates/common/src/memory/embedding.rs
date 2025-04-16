@@ -1,8 +1,9 @@
+use crate::llm::EmbeddingType;
 use crate::llm::LLMProvider;
 use crate::memory::error::MemoryError;
 use crate::prelude::*;
-use rig::embedding::{EmbeddingModel, EmbeddingRequest, EmbeddingResponse};
 
+/// Generates embeddings for text using the specified LLM provider.
 /// Generates embeddings for text using the specified LLM provider.
 pub async fn generate_embedding(text: &str, llm_provider: &dyn LLMProvider) -> Result<Vec<f32>> {
     debug!(
@@ -10,18 +11,16 @@ pub async fn generate_embedding(text: &str, llm_provider: &dyn LLMProvider) -> R
         text.chars().take(30).collect::<String>()
     );
 
-    let request = EmbeddingRequest {
-        input: text.to_string(),
-        model: None, // Use default model
-    };
-
-    match llm_provider.generate_embedding(request).await {
-        Ok(EmbeddingResponse { embedding, .. }) => {
-            debug!(
-                "Successfully generated embedding with {} dimensions",
-                embedding.len()
-            );
-            Ok(embedding)
+    match llm_provider
+        .generate_embedding(EmbeddingType::Text(text.to_string()))
+        .await
+    {
+        Ok(()) => {
+            // TODO: Implement proper embedding response handling
+            Err(Error::Memory(MemoryError::Embedding(
+                "text embedding".to_string(),
+                "Embedding generation not fully implemented".to_string(),
+            )))
         }
         Err(e) => {
             error!("Failed to generate embedding: {}", e);

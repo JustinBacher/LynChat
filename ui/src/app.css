@@ -100,6 +100,34 @@
   }
 }
 
+@layer components {
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes elevate {
+    from {
+      transform: translateY(4px);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 300ms ease-out;
+  }
+
+  .shadow-elevated {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+}
+
 .bg-primary {
   background-color: #345995 !important;
 }

@@ -109,7 +109,7 @@ impl Engine {
     /// and returning the final response as a stream.
     pub async fn process_prompt_stream(
         &self,
-        user_prompt: &str,
+        user_prompt: String,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<String>> + Send>>> {
         trace!("Engine processing prompt (stream): '{}'", user_prompt);
 

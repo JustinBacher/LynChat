@@ -92,10 +92,12 @@
           <UserMessage text={message.text} timestamp={message.timestamp} />
         {:else if message.type === "ai"}
           <AIMessage
-            text={message.text}
-            thoughts={message.thoughts}
-            tools={message.tools}
-            timestamp={message.timestamp}
+            props={{
+              text: message.text,
+              thoughts: message.thoughts,
+              tools: message.tools,
+              timestamp: message.timestamp,
+            }}
           />
         {/if}
       </div>

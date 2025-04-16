@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --config vite.config.web.ts",
-    "build": "vite build --config vite.config.web.ts",
-    "build:tauri": "vite build --config vite.config.tauri.ts",
+    "build:tauri": "ADAPTER=static vite build --config vite.config.tauri.ts",
+    "build:web": "vite build --config vite.config.web.ts",
     "preview": "vite preview --config vite.config.web.ts",
     "prepare": "svelte-kit sync || echo ''",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -35,6 +35,8 @@
     "vite": "^6.2.6"
   },
   "dependencies": {
-    "@tauri-apps/api": "^1.6.0"
+    "@sveltejs/adapter-static": "^3.0.8",
+    "@tauri-apps/api": "^2.5.0",
+    "@tauri-apps/cli": "^2.5.0"
   }
 }

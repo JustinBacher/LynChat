@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "identifier": "com.lynai.desktop",
+  "productName": "Lyn AI Assistant",
+  "version": "0.1.0",
+  "build": {
+    "beforeDevCommand": "cd ../../ui && bun run dev",
+    "beforeBuildCommand": "cd ../../ui && bun run build:tauri",
+    "frontendDist": "../../ui/dist/tauri",
+    "devUrl": "http://localhost:1420"
+  },
+  "app": {
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "height": 800,
+        "resizable": true,
+        "title": "Lyn AI Assistant",
+        "width": 1000,
+        "minHeight": 400,
+        "minWidth": 600,
+        "center": true
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "category": "Productivity",
+    "copyright": "© 2024 The Lyn Authors",
+    "targets": ["deb", "appimage", "msi", "app", "dmg"]
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    },
+    "dialog": {
+      "all": true
+    },
+    "fs": {
+      "all": true
+    }
+  }
+}

@@ -1,81 +1,53 @@
 <script lang="ts">
   import { fade } from "svelte/transition"
+  import { quintOut } from "svelte/easing"
   import ThoughtProcess from "./ThoughtProcess.svelte"
-  import ToolCall from "./ToolCall.svelte"
 
   interface Tool {
     name: string
-    arguments: Record<string, unknown>
-    result: unknown
+    arguments: Record<string, any>
+    result?: Record<string, any>
   }
 
-  interface $$Props {
+  interface AIMessageProps {
     text: string
     thoughts?: string | null
     tools?: Tool[]
-    timestamp?: Date
+    timestamp: Date
+    thinkingDuration?: number
+    isThinking?: boolean
   }
 
-  export let text: string
-  export let thoughts: string | null = null
-  export let tools: Tool[] = []
-  export let timestamp: Date = new Date()
-
-  let showThoughts: boolean = false
-
-  function formatTime(date: Date): string {
-    return date.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-  }
-
-  function toggleThoughts(): void {
-    showThoughts = !showThoughts
-  }
+  export let props: AIMessageProps
 </script>
 
-<div class="mb-4 flex flex-col items-start">
+<div
+  class="mb-4 flex flex-col items-start"
+  in:fade={{ duration: 300, easing: quintOut }}
+>
   <div class="flex items-start">
     <div
-      class="bg-primary mr-2 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-white"
+      class="bg-ai-gradient mr-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-white shadow-lg"
     >
       L
     </div>
-    <div>
-      <div class="bg-ai-bubble shadow-card rounded-lg p-4">
-        <p class="m-0">{text}</p>
+
+    <div class="flex flex-col gap-2">
+      <div class="bg-ai-bubble rounded-2xl p-4 shadow-sm">
+        <p class="m-0 leading-relaxed">{props.text}</p>
       </div>
 
-      {#if thoughts}
-        <button
-          class="text-primary hover:text-primary-dark mt-1 ml-2 text-xs focus:outline-none"
-          on:click={toggleThoughts}
-        >
-          {showThoughts ? "Hide thinking" : "Show thinking"}
-        </button>
-      {/if}
+      <ThoughtProcess
+        props={{
+          thoughts: props.thoughts,
+          isThinking: props.isThinking,
+          thinkingDuration: props.thinkingDuration,
+        }}
+      />
 
-      {#if showThoughts && thoughts}
-        <div in:fade={{ duration: 150 }}>
-          <div class="bg-thought-bubble mt-2 rounded-lg p-3 text-sm italic">
-            <ThoughtProcess text={thoughts} />
-          </div>
-        </div>
+      {#if props.tools && props.tools.length > 0}
+        <!-- Your existing tools code -->
       {/if}
-
-      {#each tools as tool, i}
-        <div class="mt-2" in:fade={{ duration: 150, delay: 100 * i }}>
-          <ToolCall
-            name={tool.name}
-            arguments={tool.arguments}
-            result={tool.result}
-          />
-        </div>
-      {/each}
-      <span class="mt-1 block text-xs text-gray-500"
-        >{formatTime(timestamp)}</span
-      >
     </div>
   </div>
 </div>
