@@ -1,0 +1,22 @@
+[package]
+name = "llm-proxy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Crate Specific Dependencies
+actix = "0.13"
+actix-web = "4.10"
+actix-files = "0.6"
+actix-web-actors = "4.3"
+actix-web-thiserror = "0.2"
+
+# Workspace Dependencies
+surf = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tide = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+

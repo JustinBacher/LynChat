@@ -1,0 +1,14 @@
+use sea_orm::entity::prelude::*;
+use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+#[sea_orm(table_name = "settings")]
+pub struct Setting {
+    #[sea_orm(primary_key)]
+    pub id: i32,
+    pub user_id: i32,
+    pub key: String,
+    pub value: Json,
+    pub updated_at: DateTime<Utc>,
+}

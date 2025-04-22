@@ -1,0 +1,10 @@
+[package]
+name = "llm-proxy"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "llm-proxy"
+path = "src/main.rs"
+
+[dependencies]
