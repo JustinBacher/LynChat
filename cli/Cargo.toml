@@ -1,0 +1,37 @@
+# Description: Lyn AI Assistant CLI Client
+# Copyright: (c) 2024 The Lyn Authors
+# License: MIT OR Apache-2.0
+
+[package]
+name = "cli"
+edition = "2024"
+
+[[bin]]
+name = "cli"
+path = "src/main.rs"
+
+[dependencies]
+# Project Libraries
+common = { path = "../common" } # Depend on the local core library
+
+# Crate Specific Dependencies
+async-std = { workspace = true }
+clap = { version = "4.5", features = ["derive"] }
+crossterm = { version = "0.27", features = ["event-stream"] }
+pulldown-cmark = "0.11"
+serde = { workspace = true }
+tracing-error = { workspace = true }
+color-eyre = { workspace = true }
+ratatui = { version = "0.29.0", features = ["all-widgets"] }
+directories = { workspace = true }
+lazy_static = { workspace = true }
+# NOTE: May want this for markdown rendering
+# rustyline = "14.0"
+
+# Workspace Dependencies
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+async-channel = { workspace = true }
+futures-util = { workspace = true }
+tui-framework-experiment = "0.4.0"
