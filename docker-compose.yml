@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: services/backend/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - RUST_LOG=info
+    volumes:
+      - ./services/backend:/app/services/backend
+      - ./common:/app/common
+    command: cargo run --bin llm-proxy
+    networks:
+      - lyn-network
+
+  embeddings:
+    build:
+      context: .
+      dockerfile: services/embeddings/Dockerfile
+    ports:
+      - "8081:8080"
+    environment:
+      - RUST_LOG=info
+    volumes:
+      - ./services/embeddings:/app/services/embeddings
+      - ./common:/app/common
+    command: cargo run --bin embeddings
+    networks:
+      - lyn-network
+
+  frontend:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./ui:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_BASE_URL=http://backend:8080
+      - VITE_WS_BASE_URL=ws://backend:8080
+    command: npm run dev -- --host
+    networks:
+      - lyn-network
+    depends_on:
+      - backend
+      - embeddings
+
+networks:
+  lyn-network:
+    driver: bridge
