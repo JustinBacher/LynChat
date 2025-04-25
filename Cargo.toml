@@ -1,0 +1,95 @@
+# Description: Lyn AI Assistant Workspace Configuration
+# Copyright: (c) 2024 The Lyn Authors
+# License: MIT OR Apache-2.0
+
+[workspace]
+resolver = "2" # Use the latest resolver
+members = [
+    "cli",
+    "desktop",
+    "common",
+    "services/llm-proxy",
+    "services/embeddings",
+]
+description = "Core engine for the Lyn AI assistant (LLM interaction, memory, tools)."
+readme = "../README.md"
+homepage = "https://github.com/your-repo/lyn" # TODO: Update with actual repo URL
+repository = "https://github.com/your-repo/lyn" # TODO: Update with actual repo URL
+license = "MIT OR Apache-2.0"
+keywords = ["ai", "assistant", "llm", "privacy", "local", "core"]
+categories = ["libraries", "science::ai"]
+
+# Optional: Define shared dependencies or profiles for the workspace
+[workspace.dependencies]
+# Async dependeincies
+async-channel = "2.3"
+async-std = { version = "1.12", features = [
+    "attributes",
+    "unstable",
+    "tokio1",
+] }
+async-stream = "0.3.6"
+async-trait = "0.1"
+futures = "0.3.31"
+futures-util = "0.3"
+
+# Configuration Management
+config = "0.13"
+
+#Serialization/Deserialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = [
+    "env-filter",
+    "alloc",
+    "fmt",
+    "local-time",
+    "registry",
+] }
+tracing-error = "0.2"
+color-eyre = "0.6"
+
+# -- Services --
+
+# Web framework & HTTP client
+tide = "0.16"
+surf = "2.3"
+async-tungstenite = "0.29"
+
+# Database
+sea-orm = { version = "1.1.0", features = [
+    "sqlx-postgres",
+    "runtime-async-std-native-tls",
+    "macros",
+    "mock",
+] }
+
+# Auth
+jsonwebtoken = "8.3"
+argon2 = "0.5"
+
+# Validation
+validator = { version = "0.16", features = ["derive"] }
+
+# Utilities
+itertools = "0.14.0"
+mockall = "0.13"
+regex = "1.8"
+rand = "0.8"
+thiserror = "1.0"
+uuid = { version = "1.8", features = ["v4", "serde"] }
+tracing-log = "0.2"
+time = "0.3"
+smallvec = "1.15"
+parking_lot = "0.12"
+directories = "5.0"
+lazy_static = "1.4"
+
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
