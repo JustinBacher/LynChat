@@ -1,15 +1,8 @@
-use sea_orm::{Database, DatabaseConnection};
 use std::env;
-use tracing::info;
-use actix_web::{web, App, HttpResponse, HttpServer, Responder, get};
+use sea_orm::Database;
 
 mod api;
 mod models;
-
-#[get("/health")]
-async fn health_check() -> impl Responder {
-    HttpResponse::Ok().body("Database service is healthy")
-}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -21,7 +14,7 @@ async fn main() -> std::io::Result<()> {
         .expect("DATABASE_URL environment variable must be set");
 
     // Connect to database
-    let db: sea_orm::DatabaseConnection = sea_orm::Database::connect(&database_url)
+    let db = Database::connect(&database_url)
         .await
         .expect("Failed to connect to PostgreSQL database");
 
@@ -33,20 +26,6 @@ async fn main() -> std::io::Result<()> {
 
     tracing::info!("Database service listening on port {}", port);
 
-    // Start HTTP server
-    HttpServer::new(move || {
-        App::new()
-            .app_data(web::Data::new(db.clone()))
-            .service(health_check)
-            .service(api::endpoints::health)
-            .service(api::endpoints::ping)
-            .service(api::endpoints::audit::get_audit_logs)
-            .service(api::endpoints::conversations::get_conversations)
-            .service(api::endpoints::conversations::add_conversation)
-            .service(api::endpoints::settings::get_settings)
-            .service(api::endpoints::settings::update_setting)
-    })
-    .bind(("127.0.0.1", port))?
-    .run()
-    .await
+    // Start HTTP server using the run_server function from api module
+    api::run_server(db, port).await
 }

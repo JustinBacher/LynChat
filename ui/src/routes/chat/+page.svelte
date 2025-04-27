@@ -28,15 +28,36 @@
 	// Handle WebSocket messages
 	function handleWebSocketMessage(event: CustomEvent) {
 		try {
-			const response = JSON.parse(event.detail);
+			// The message might already be parsed by the websocketStore
+			const response = typeof event.detail === 'string' ? JSON.parse(event.detail) : event.detail;
+
+			// Log the response for debugging
+			console.log('WebSocket response received:', response);
+
+			// Check for errors
 			if (response.error) {
-				handleError(response.error);
+				handleError(typeof response.error === 'string' ? response.error : JSON.stringify(response.error));
 				return;
 			}
 
-			messages = [...messages, { text: response.content, sender: 'ai', isError: false }];
+			// Extract content from the response
+			let content = '';
+			if (response.content) {
+				content = response.content;
+			} else if (response.message) {
+				content = response.message;
+			} else if (response.raw_response) {
+				content = JSON.stringify(response.raw_response);
+			} else {
+				content = JSON.stringify(response);
+			}
+
+			// Add the message to the chat
+			messages = [...messages, { text: content, sender: 'ai', isError: false }];
 		} catch (error) {
-			console.error('Error parsing WebSocket message:', error);
+			console.error('Error handling WebSocket message:', error);
+			console.error('Raw event detail:', event.detail);
+			handleError('Failed to parse response');
 		}
 	}
 
@@ -45,7 +66,9 @@
 		websocketStore.connect();
 
 		// Add event listener for WebSocket messages
-		window.addEventListener('ws-message', handleWebSocketMessage as EventListener);
+		if (typeof window !== 'undefined') {
+			window.addEventListener('ws-message', handleWebSocketMessage as EventListener);
+		}
 
 		// Process initial message if it exists
 		if (initialMessage.trim()) {
@@ -62,7 +85,10 @@
 		// Clean up subscriptions and event listeners
 		unsubscribe();
 		unsubscribeInitialMessage();
-		window.removeEventListener('ws-message', handleWebSocketMessage as EventListener);
+		// Only remove event listener if we're in a browser environment
+		if (typeof window !== 'undefined') {
+			window.removeEventListener('ws-message', handleWebSocketMessage as EventListener);
+		}
 	});
 
 	function handleError(error: string) {
@@ -92,7 +118,7 @@
 					method: 'POST',
 					headers: {
 						'Content-Type': 'application/json',
-						Authorization: `Bearer ${localStorage.getItem('auth_token')}`
+						Authorization: `Bearer ${typeof localStorage !== 'undefined' ? localStorage.getItem('auth_token') || '' : ''}`
 					},
 					body: JSON.stringify({
 						message: text,

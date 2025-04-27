@@ -13,6 +13,6 @@ pub async fn health_check() -> impl Responder {
 // Configure all routes
 pub fn configure_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(health_check)
-       .route("/ws/chat", web::get().to(websocket::chat_ws))
-       .route("/ws/chat/{id}", web::get().to(websocket::chat_ws));
+       .service(websocket::chat_ws_default)
+       .service(websocket::chat_ws_with_id);
 }

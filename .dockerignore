@@ -1,0 +1,50 @@
+# Git
+.git
+.gitignore
+.github
+
+# Docker
+.dockerignore
+Dockerfile*
+docker-compose*
+
+# IDE files
+.idea
+.vscode
+*.swp
+*.swo
+
+# Build artifacts
+target/
+**/target/
+
+# Node.js (for frontend)
+ui/node_modules
+ui/dist
+ui/.svelte-kit
+ui/build
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Documentation
+docs/
+*.md
+LICENSE
+
+# Test files
+**/tests/
+**/__tests__/
+**/test/
+**/*.test.*
+**/*.spec.*
+
+# Misc
+.DS_Store
+.env*
+!.env.example

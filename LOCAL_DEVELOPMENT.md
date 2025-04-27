@@ -72,7 +72,7 @@ docker-compose up --build
 
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:8080
-- WebSocket: ws://localhost:8080/ws/chat
+- WebSocket: ws://localhost:8083/ws/chat
 
 ## Environment Variables
 
@@ -80,7 +80,8 @@ The frontend uses environment variables to connect to the backend services. Thes
 
 ```
 VITE_API_BASE_URL=http://localhost:8080
-VITE_WS_BASE_URL=ws://localhost:8080
+VITE_WS_BASE_URL=ws://localhost:8083
+VITE_LLM_PROXY_URL=http://localhost:8083
 ```
 
 For Docker Compose, these are automatically set to use the container names instead of localhost.
@@ -101,3 +102,26 @@ Check the logs in the `logs` directory for error messages. Common issues include
 ### Frontend Not Connecting to Backend
 
 Ensure that the environment variables in `ui/.env` are set correctly and that the backend services are running.
+
+### WebSocket Connection Issues
+
+If you're experiencing WebSocket connection problems:
+
+1. **When running with Docker Compose**:
+   - Make sure the environment variables in `docker-compose.yml` use service names (not localhost):
+     ```
+     environment:
+       - VITE_API_BASE_URL=http://backend:8080
+       - VITE_WS_BASE_URL=ws://llm-proxy:8083
+       - VITE_LLM_PROXY_URL=http://llm-proxy:8083
+     ```
+
+2. **When running services manually**:
+   - Ensure the llm-proxy service is running on port 8083
+   - Check that your `ui/.env` file has the correct WebSocket URL:
+     ```
+     VITE_WS_BASE_URL=ws://localhost:8083
+     ```
+
+3. **Check browser console for errors**:
+   - Look for WebSocket connection errors in your browser's developer tools console

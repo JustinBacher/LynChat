@@ -1,55 +1,172 @@
-version: '3.8'
-
 services:
+  # Database services
+  postgres:
+    image: postgres:14
+    container_name: postgres
+    network_mode: host
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=lyn
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant
+    container_name: qdrant
+    network_mode: host
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Shared builder service
+  builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.builder
+    network_mode: host
+    volumes:
+      - rust_target:/app/target
+      - cargo_cache:/usr/local/cargo/registry  # Cache Cargo registry
+      - cargo_git:/usr/local/cargo/git        # Cache Cargo git repos
+
+  # Application services
+  database:
+    build:
+      context: .
+      dockerfile: services/database/Dockerfile
+    network_mode: host
+    environment:
+      - RUST_LOG=info
+      - DATABASE_URL=postgres://postgres:postgres@localhost:5432/lyn
+      - DB_PORT=8081
+      - SERVER_HOST=0.0.0.0
+    volumes:
+      - rust_target:/app/target
+      - ./services/database:/app/services/database
+      - ./common:/app/common
+    depends_on:
+      - builder
+      - postgres
+
   backend:
     build:
       context: .
       dockerfile: services/backend/Dockerfile
-    ports:
-      - "8080:8080"
+    network_mode: host
     environment:
       - RUST_LOG=info
+      - API_PORT=8080
+      - DATABASE_URL=postgres://postgres:postgres@localhost:5432/lyn
+      - QDRANT_URL=http://localhost:6333
     volumes:
+      - rust_target:/app/target
       - ./services/backend:/app/services/backend
       - ./common:/app/common
-    command: cargo run --bin llm-proxy
-    networks:
-      - lyn-network
+    depends_on:
+      - builder
+      - postgres
+      - qdrant
+      - database
+
+  # llama.cpp LLM service
+  llamacpp:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: llamacpp
+    network_mode: host
+    volumes:
+      - llama_models:/models
+    environment:
+      - LLAMA_ARG_MODEL_URL=https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q8_0.gguf
+      - LLAMA_ARG_MODEL=/models/gemma-3-1b-it-Q8_0.gguf
+      - LLAMA_ARG_CTX_SIZE=4096
+      - LLAMA_ARG_N_PARALLEL=2
+      - LLAMA_ARG_PORT=8084
+      - LLAMA_ARG_HOST=0.0.0.0
+      - LLAMA_ARG_CHAT_TEMPLATE=gemma
+      - LLAMA_ARG_HF_TOKEN=${HF_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  llm-proxy:
+    build:
+      context: .
+      dockerfile: services/llm-proxy/Dockerfile
+    network_mode: host
+    environment:
+      - RUST_LOG=debug
+      - API_PORT=8083
+      - SERVER_HOST=0.0.0.0
+      - LYN_PROVIDER_CONFIGS_LLAMACPP_URL=http://localhost
+      - LYN_PROVIDER_CONFIGS_LLAMACPP_PORT=8084
+    # Run the binary directly without modifying the source code
+    command: /app/target/debug/llm-proxy
+    # Ensure the container has a hostname that can be resolved
+    hostname: llm-proxy
+    volumes:
+      - rust_target:/app/target
+      - ./services/llm-proxy:/app/services/llm-proxy
+      - ./common:/app/common
+    depends_on:
+      - builder
+      - llamacpp
 
   embeddings:
     build:
       context: .
       dockerfile: services/embeddings/Dockerfile
-    ports:
-      - "8081:8080"
+    network_mode: host
     environment:
       - RUST_LOG=info
+      - QDRANT_URL=http://localhost:6333
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8082
+      - LYN_EMBEDDING_PROVIDER_CONFIGS_OLLAMA_URL=http://localhost
+      - LYN_EMBEDDING_PROVIDER_CONFIGS_OLLAMA_PORT=8084
     volumes:
+      - rust_target:/app/target
       - ./services/embeddings:/app/services/embeddings
       - ./common:/app/common
-    command: cargo run --bin embeddings
-    networks:
-      - lyn-network
+    depends_on:
+      - builder
+      - qdrant
+      - llamacpp
 
   frontend:
     build:
       context: ./ui
       dockerfile: Dockerfile
-    ports:
-      - "5173:5173"
+    network_mode: host
     volumes:
       - ./ui:/app
       - /app/node_modules
     environment:
-      - VITE_API_BASE_URL=http://backend:8080
-      - VITE_WS_BASE_URL=ws://backend:8080
+      - VITE_API_BASE_URL=http://localhost:8080
+      - VITE_WS_BASE_URL=ws://localhost:8083
+      - VITE_LLM_PROXY_URL=http://localhost:8083
+      - NODE_ENV=development
     command: npm run dev -- --host
-    networks:
-      - lyn-network
     depends_on:
       - backend
       - embeddings
+      - llm-proxy
+      - llamacpp
 
-networks:
-  lyn-network:
-    driver: bridge
+volumes:
+  postgres_data:
+  qdrant_data:
+  llama_models:  # Persistent storage for llama.cpp models
+  rust_target:  # Shared volume for Rust build artifacts
+  cargo_cache:  # Cache for Cargo registry
+  cargo_git:    # Cache for Cargo git repositories

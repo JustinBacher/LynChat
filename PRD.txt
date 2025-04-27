@@ -1,0 +1,223 @@
+# Lyn AI Assistant – Product Requirements Document
+
+## 1. Overview
+
+**Objective:**  
+Develop a cross-platform user interface for Lyn AI Assistant that seamlessly runs on both web and desktop (Tauri) environments. The solution must enforce a privacy-first approach and integrate with existing Lyn components and backend services while providing a secure, interactive chat experience with robust sensitive-data management.
+
+**Scope:**  
+
+- Reusable UI for web and desktop.
+- Privacy-focused data handling with dedicated sanitization.
+- Integration with existing Lyn CLI/TUI and backend services.
+- Real-time chat streaming with dynamic tool integration.
+- Dedicated PII detection via a locally deployed, distilled BERT model.
+
+---
+
+## 2. High-Level Architecture
+
+**Components:**
+
+- **Frontend Web Components:** Built in Svelte (or Solid.js alternative) for chat, settings, and security notifications.
+- **Desktop Application (Tauri):** Wraps the web UI with native desktop integrations.
+- **Rust Web Backend Service:** Serves the UI, handles authentication, and routes REST/WebSocket API requests.
+- **User Data Service:** Isolated and encrypted storage for user data with opt-in/out capabilities.
+- **LLM Proxy Service (Dedicated & Separated):**  
+  - Handles traffic to external LLMs and is responsible for sanitizing user requests.
+  - Integrates a dedicated sanitization pipeline that combines rule-based methods and a lightweight, distilled BERT model (e.g., DistilBERT/TinyBERT) for PII detection.
+  - Operates asynchronously to minimize delays in the main processing flow.
+- **Lyn Core Engine (Rust):** Provides core AI processing functionality.
+
+**Diagram:**  
+
+```mermaid
+graph TD
+    A(Frontend Web Components)
+    B(Tauri Desktop App)
+    C(Rust Backend Service)
+    D(User Data Service)
+    E(LLM Proxy Service<br/>(with PII Detection))
+    F(Lyn Core Engine)
+
+    A <--> B
+    B <--> F
+    A --> C
+    C --> D
+    D --> E
+```
+
+---
+
+## 3. Functional Requirements
+
+### 3.1 Frontend/UI
+
+- **Visual Theme:**  
+  - **Background:** “Dirty light mode” (muted light background, slightly darker than Claude’s default).  
+  - **Primary Colors:**  
+    - Prussian blue (#345995): A variant between bright purple and cobalt blue.
+    - Accent colors: Vibrant autumn orange (#F76F3B) and mustard yellow (#EFC94C) for pop.
+  - **Text Colors:** Dark gray on light backgrounds; light gray on dark backgrounds.
+
+- **Animations and Transitions:**  
+  - Smooth, blur-to-focus or un-zoom effects on page load.
+  - Intentional motion for interactive elements (buttons, menu toggles).
+
+- **Chat Interface:**  
+  - **Layout:**  
+    - User messages: Right-aligned with accent background.
+    - AI messages: Left-aligned with softer, light-colored backgrounds.
+  - **Interactive Elements:**
+    - Collapsible sections for the AI’s thought process.
+    - Distinct indicators for tool calls.
+  - **Security Mascot:**  
+    - Non-intrusive alerts triggered when sensitive information is detected.
+    - Provides real-time feedback and options to mark data as public or private.
+
+- **Settings & Navigation:**  
+  - A hamburger menu for settings, adaptable between web and desktop.
+  - Options to manage data storage, including opt-in/out and secure local data export/import.
+
+### 3.2 API & Integration
+
+- **WebSocket API:**  
+  - Facilitates real-time streaming of AI chat responses.
+  - Emits partial updates (e.g., content chunks, thought process, tool call outputs).
+
+- **REST Endpoints:**  
+  - Manage user settings, conversation history, and security events.
+  - Interface with the user data and authentication services.
+
+- **Tauri Command Bridge:**  
+  - Exposes core functionality from `lyn-core` to the UI via commands.
+  - Manages event streams and real-time communication between the Tauri app and the core engine.
+
+### 3.3 Data & Privacy
+
+- **Data Isolation:**  
+  - User data is stored in an isolated, encrypted service.
+  - Provides fine-grained access control and comprehensive audit logging for data interactions.
+
+- **Sanitization & PII Detection (Dedicated LLM Proxy Service):**  
+  - **Separation:**  
+    - The proxy service is isolated from the core system, ensuring that any vulnerability in PII detection does not impact overall operations.
+  - **PII Detection Pipeline:**  
+    - Employs both rule-based checks and a lightweight, distilled BERT (e.g., DistilBERT/TinyBERT) model fine-tuned for PII recognition.
+    - Detects nuanced sensitive data (e.g., phone numbers, email addresses) beyond simple regex matching.
+  - **User Notification & Control:**  
+    - When potential PII is flagged, the system notifies the user via a security mascot alert.
+    - The user can choose to mark the flagged content as private (redacted) or public, thereby controlling data exposure.
+  - **Asynchronous Processing:**  
+    - Run detection asynchronously to avoid blocking the main processing pipeline.
+    - Keep the LLM model warm to reduce latency during inference.
+  - **Secure Storage:**  
+    - If sensitive data is retained, it is stored in an isolated, encrypted store with strict access permissions.
+
+### 3.4 Security
+
+- **Transport Security:**  
+  - All communications use TLS.
+- **Authentication & Authorization:**  
+  - Implement robust user authentication methods including MFA.
+  - Use session management techniques that minimize data exposure.
+- **Audit & Monitoring:**  
+  - Maintain detailed logs for all operations, especially those involving sanitization and access to sensitive data.
+  - Regular audits ensure compliance with privacy policies and security standards.
+
+---
+
+## 4. Non-Functional Requirements
+
+- **Performance:**  
+  - Ensure real-time chat streaming is responsive with lightweight animations.
+  - The dedicated proxy service and PII detection run asynchronously to maintain overall system performance.
+- **Scalability:**  
+  - Isolated services allow independent scaling. The proxy can scale based on request volume without impacting core services.
+- **Maintainability:**  
+  - A modular codebase with well-defined interfaces for easy maintenance and future updates.
+- **Resource Efficiency:**  
+  - Use quantization and inference optimization techniques to ensure the local LLM model remains small (minimizing VRAM usage) while delivering accurate PII detection.
+
+- **Cross-Platform Consistency:**  
+  - Consistent UX and visual identity across both web and Tauri desktop applications.
+  - Responsive design tailored for different screen sizes and devices.
+
+---
+
+## 5. Implementation Roadmap
+
+### Phase 1: Core Foundation
+
+- **Environment Setup:**  
+  - Prepare development stacks for Svelte/Solid, Rust(Actix), and Rust (Tauri).
+- **Basic UI Components:**  
+  - Implement primary chat layout, message components, and visual theme.
+- **Backend Skeleton:**  
+  - Set up basic user data service and Rust backend structure.
+- **Proxy Service Initial Setup:**  
+  - Establish a dedicated proxy service framework for data sanitization.
+
+### Phase 2: Feature Development
+
+- **Real-Time Chat Streaming:**  
+  - Implement WebSocket and REST APIs for chat and settings.
+- **Tool Integration:**  
+  - Integrate tool-call functionality and associated UI components.
+- **PII Detection Implementation:**  
+  - Integrate the distilled BERT model into the proxy service.
+  - Set up asynchronous processes for PII detection and user notifications.
+- **Settings Module:**  
+  - Develop and integrate adaptive settings menus and authentication flows.
+
+### Phase 3: Security & Polish
+
+- **Enhanced Security Measures:**  
+  - Enforce encryption, audit logging, and MFA.
+- **UI/UX Refinement:**  
+  - Enhance animations, interactions (e.g., security mascot alerts), and responsive design.
+- **Cross-Platform Testing:**  
+  - Validate consistent performance across web and desktop platforms.
+- **Performance Optimization:**  
+  - Optimize local LLM inference (caching, warm-up techniques) and overall system latency.
+
+---
+
+## 6. Integration & Deployment
+
+- **Frontend ↔ Backend Integration:**  
+  - RESTful APIs and WebSocket endpoints for real-time chat, settings, and notifications.
+  - Tauri commands bridge the Rust core with frontend components.
+- **Proxy Service Integration:**  
+  - The proxy service runs independently, processing incoming requests before reaching external LLMs.
+  - Logs and flags any PII, notifying users and applying appropriate redaction policies.
+- **Team Responsibilities:**  
+  - **Frontend Teams:** Build and refine Svelte/Solid components.
+  - **Backend Teams:** Develop the Rust backend, user data isolation, and proxy service.
+  - **Desktop Integration:** Implement Rust/Tauri bridging to `lyn-core`.
+  - **Security Team:** Oversee robust PII detection, audit trails, and policy compliance.
+- **Deployment Strategy:**  
+  - Continuous integration (CI) to test and deploy modular components independently.
+  - Web application hosted via scalable cloud services; Tauri desktop packages available per OS.
+
+---
+
+## 7. Open Areas for Adaptation
+
+- **LLM Proxy Service:**  
+  - Evaluate and iterate on the separation of the proxy service. Adjust if consolidating with other services provides advantages.
+  - Continue refining the BERT-based PII detection (custom fine-tuning and model updates) as user data patterns evolve.
+- **User Feedback Mechanisms:**  
+  - Refine notification methods (e.g., security mascot interactions) based on user feedback.
+  - Enable dynamic adjustments for users to tailor sensitivity thresholds for PII detection.
+- **Performance Tuning:**  
+  - Monitor inference latency; consider additional caching or model optimizations if needed.
+  - Adjust asynchronous handling to balance between real-time processing and robust PII screening.
+
+---
+
+## Analysis
+
+This refactored PRD integrates the new approach of isolating the proxy service and employing a lightweight, distilled BERT model for PII detection. The changes ensure enhanced security through isolation, flexibility by allowing user control over flagged sensitive information, and minimal performance impact via asynchronous processing and model optimizations. This approach aligns with security best practices and provides a clear roadmap for iterative improvement as the system scales.
+
+---

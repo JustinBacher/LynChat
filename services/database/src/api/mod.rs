@@ -1,13 +1,8 @@
 pub mod endpoints;
 
-use actix_web::{web, App, HttpServer};
+use endpoints::main;
+use sea_orm::DatabaseConnection;
 
-
-use endpoints::{audit::get_audit_logs, conversations::{get_conversations, add_conversation}, health::health, settings::{get_settings, update_setting}, get_app};
-
-pub async fn run_server() -> std::io::Result<()> {
-    HttpServer::new(get_app)
-    .bind(("127.0.0.1", 8080))?
-    .run()
-    .await
+pub async fn run_server(db: DatabaseConnection, port: u16) -> std::io::Result<()> {
+    main(db, port).await
 }

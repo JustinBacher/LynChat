@@ -1,0 +1,1103 @@
+# Detailed Engineering Brief: Lyn AI Assistant Web Interface Implementation
+
+## Project Overview
+
+This brief outlines requirements for developing a cross-platform web interface for the Lyn AI Assistant, a privacy-focused assistant currently implemented in Rust. The interface must be reusable for both web and desktop (Tauri) applications.
+
+Lyn is designed with a privacy-first approach, supporting both local LLMs and web API-based LLMs. The current CLI/TUI interface will now be expanded to web and desktop with a shared codebase.
+
+## High-Level Architecture
+
+```
+┌─────────────────────────────┐      ┌───────────────────────┐
+│                             │      │                       │
+│  Frontend (Svelte/Solid)    │◄────►│  Tauri Desktop App    │
+│                             │      │  (w/ Local PII        │
+└───────────┬─────────────────┘      │  Detection)           │
+            │                        └───────────────────────┘
+            ▼                                    ▲
+┌───────────────────────────┐                    │
+│ Go Web Backend Server     │                    │
+│ (Serves UI & API)         │                    │
+└───────────┬───────────────┘                    │
+            │                                    │
+            ▼                                    │
+┌───────────────────────────┐                    │
+│ User Data Service         │                    │
+│ (Isolated Storage)        │                    │
+└─────────────────────┬─────┘                    │
+                      │                          │
+                      ▼                          │
+┌─────────────────────────────┐                  │
+│ LLM Proxy Service           │                  │
+│ (Completely Separate)       │                  │
+│ (w/ PII Detection for Web)  │                  │
+│ (Anonymizes All Requests)   │                  │
+└─────────────────────────────┘                  │
+                                                 │
+┌───────────────────────────┐                    │
+│ Lyn Core Engine           │◄───────────────────┘
+│ (Rust)                    │
+└───────────────────────────┘
+```
+
+## For the JavaScript Engineer (Frontend)
+
+### Design Specifications
+
+#### Color Palette
+- **Background**: A "dirty light mode" - slightly darker than Claude's background
+- **Main Colors**:
+  - Primary: Prussian blue variant (#345995) - between bright purple and cobalt blue
+  - Accent 1: Vibrant autumn orange (#F76F3B)
+  - Accent 2: Mustard yellow (#EFC94C)
+  - Text: Dark gray (#333333) on light backgrounds, light gray (#F5F5F5) on dark backgrounds
+
+#### UI/UX Requirements
+- **Loading Animation**: Implement a blur-to-focus/un-zoom effect when components load
+- **Chat Interface**: Clean, focused design with clear distinction between:
+  - User messages (right-aligned, accent color background)
+  - AI responses (left-aligned, light background)
+  - AI reasoning/thought process (collapsible sections, slightly different background)
+  - Tool calls (visually distinct, with results shown)
+- **Security Mascot**: 
+  - Non-intrusive mascot that appears when sensitive information is detected
+  - Provides real-time feedback and options to mark flagged data as public or private
+- **Settings Menu**: Implement as a hamburger menu that adapts to web/desktop contexts
+- **Responsive Design**: Must work well on both web and desktop Tauri app
+
+### Component Structure (Svelte)
+
+```
+src/
+├── components/
+│   ├── Chat/
+│   │   ├── ChatContainer.svelte
+│   │   ├── UserMessage.svelte
+│   │   ├── AIMessage.svelte
+│   │   ├── ThoughtProcess.svelte
+│   │   └── ToolCall.svelte
+│   ├── UI/
+│   │   ├── SecurityMascot.svelte
+│   │   ├── LoadingAnimation.svelte
+│   │   ├── SettingsMenu.svelte
+│   │   └── MessageInput.svelte
+│   └── common/
+│       ├── Button.svelte
+│       ├── Card.svelte
+│       └── Theme.svelte
+├── stores/
+│   ├── chat.js
+│   ├── settings.js
+│   └── security.js
+└── services/
+    ├── chatService.js
+    ├── authService.js
+    └── settingsService.js
+```
+
+### Sample Code: Svelte Message Component
+
+```svelte
+<!-- AIMessage.svelte -->
+<script>
+  export let message;
+  export let thoughts = null;
+  export let tools = [];
+  
+  let showThoughts = false;
+  
+  function toggleThoughts() {
+    showThoughts = !showThoughts;
+  }
+</script>
+
+<div class="ai-message-container">
+  <!-- Main AI response -->
+  <div class="ai-message">
+    <div class="ai-avatar">L</div>
+    <div class="ai-content">
+      {message}
+      
+      {#if thoughts}
+        <button 
+          class="thought-toggle"
+          on:click={toggleThoughts}
+        >
+          {showThoughts ? 'Hide reasoning' : 'Show reasoning'}
+        </button>
+      {/if}
+    </div>
+  </div>
+  
+  <!-- Collapsible thought process -->
+  {#if showThoughts && thoughts}
+    <svelte:component this={import('./ThoughtProcess.svelte')} {thoughts} />
+  {/if}
+  
+  <!-- Tool calls (if any) -->
+  {#each tools as tool, i}
+    <svelte:component this={import('./ToolCall.svelte')} {tool} />
+  {/each}
+</div>
+
+<style>
+  .ai-message-container {
+    margin-bottom: 16px;
+  }
+  
+  .ai-message {
+    display: flex;
+    align-items: flex-start;
+    background-color: #f9f9f9;
+    border-radius: 12px;
+    padding: 12px;
+    max-width: 80%;
+  }
+  
+  .ai-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: #345995;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    font-weight: bold;
+  }
+  
+  .ai-content {
+    flex: 1;
+  }
+  
+  .thought-toggle {
+    background: none;
+    border: none;
+    color: #345995;
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin-top: 8px;
+    text-decoration: underline;
+  }
+</style>
+```
+
+### Sample Code: Security Mascot Component
+
+```svelte
+<!-- SecurityMascot.svelte -->
+<script>
+  import { fade, fly } from 'svelte/transition';
+  import { securityStore } from '../stores/security';
+  
+  export let detectedPII = null;
+  
+  function markAsPrivate() {
+    securityStore.maskSensitiveData(detectedPII.id);
+  }
+  
+  function markAsPublic() {
+    securityStore.allowSensitiveData(detectedPII.id);
+  }
+</script>
+
+{#if detectedPII}
+  <div class="mascot-container" transition:fly={{ y: 20, duration: 300 }}>
+    <div class="mascot">
+      <!-- Mascot icon/image -->
+      <div class="mascot-icon">🛡️</div>
+      
+      <div class="mascot-content">
+        <h4>Sensitive Information Detected</h4>
+        <p>I noticed what might be {detectedPII.type} in your message.</p>
+        
+        <div class="mascot-actions">
+          <button on:click={markAsPrivate} class="btn-private">
+            Make Private
+          </button>
+          <button on:click={markAsPublic} class="btn-public">
+            Keep Public
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<style>
+  .mascot-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 100;
+  }
+  
+  .mascot {
+    display: flex;
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    padding: 16px;
+    max-width: 320px;
+    border-left: 4px solid #F76F3B;
+  }
+  
+  .mascot-icon {
+    font-size: 24px;
+    margin-right: 12px;
+  }
+  
+  .mascot-content h4 {
+    margin: 0 0 8px 0;
+    color: #333;
+  }
+  
+  .mascot-content p {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+  }
+  
+  .mascot-actions {
+    display: flex;
+    gap: 8px;
+  }
+  
+  .btn-private {
+    background-color: #345995;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .btn-public {
+    background-color: transparent;
+    color: #333;
+    border: 1px solid #ccc;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+</style>
+```
+
+## For the Go Engineer & Security Analyst (Backend)
+
+### Service Architecture
+
+Implement three completely separate services:
+
+1. **Web Application Service**
+   - Serves the frontend Svelte/Solid application
+   - Handles user authentication and session management
+   - Routes requests to appropriate services
+   - Manages WebSocket connections for real-time chat
+
+2. **User Data Service**
+   - Completely isolated storage for user data
+   - Implements encryption at rest
+   - Provides granular access controls
+   - Implements opt-in/out mechanisms for data storage
+   - Maintains audit logs for all data access
+
+3. **LLM Proxy Service (Completely Separate)**
+   - Operates as an independent service with no direct connection to user accounts
+   - Sole responsibility is to handle traffic to external LLMs
+   - **Request Anonymization**:
+     - Removes all identifying information from requests (IP addresses, session IDs, etc.)
+     - Uses rotating proxy servers to prevent tracking by IP
+     - Implements request fingerprint obfuscation techniques
+     - Ensures LLM providers cannot correlate requests to specific users
+   - For web users, includes PII detection using:
+     - A lightweight, distilled BERT model (e.g., DistilBERT/TinyBERT)
+     - Rule-based methods for common patterns
+   - Sanitizes requests before sending to third-party providers
+   - Does not store or process user account data directly
+
+### Security Requirements
+
+- **Complete Service Isolation**: The three services must be totally separate with no shared databases or direct connections
+- **Transport Security**: TLS for all communications between services
+- **Authentication**: Strong user authentication with MFA option
+- **Authorization**: Fine-grained access controls
+- **Data Minimization**: Only store what's necessary
+- **User Control**: Clear opt-in/out mechanisms
+- **Encryption**: All data encrypted at rest and in transit
+- **Sanitization**: Thorough scrubbing of sensitive data in LLM requests
+- **Anonymization**: Ensure external LLM providers cannot identify or track users
+- **Audit Logging**: Comprehensive logs for security monitoring
+
+### Sample Code: User Data Service Interface
+
+```go
+// userdata/service.go
+package userdata
+
+import (
+    "context"
+    "time"
+)
+
+// Privacy settings for user data storage
+type PrivacySettings struct {
+    StoreConversations bool
+    StorePreferences   bool
+    StoreSummaries     bool
+    AllowAnonymizedData bool
+}
+
+// UserData represents user-specific data
+type UserData struct {
+    UserID        string
+    Conversations []Conversation
+    Preferences   map[string]interface{}
+    Privacy       PrivacySettings
+    UpdatedAt     time.Time
+}
+
+// Service defines the user data service interface
+type Service interface {
+    // User operations
+    GetUserData(ctx context.Context, userID string) (*UserData, error)
+    UpdatePrivacySettings(ctx context.Context, userID string, settings PrivacySettings) error
+    
+    // Conversation operations
+    SaveConversation(ctx context.Context, userID string, conv Conversation) error
+    GetConversations(ctx context.Context, userID string, limit int, offset int) ([]Conversation, error)
+    DeleteConversation(ctx context.Context, userID string, convID string) error
+    
+    // Preference operations
+    UpdatePreferences(ctx context.Context, userID string, prefs map[string]interface{}) error
+    
+    // Audit operations
+    GetAuditLog(ctx context.Context, userID string, from, to time.Time) ([]AuditEntry, error)
+}
+```
+
+### Sample Code: LLM Proxy Service with Anonymization
+
+```go
+// llmproxy/service.go
+package llmproxy
+
+import (
+    "context"
+    "crypto/rand"
+    "encoding/hex"
+    "net/http"
+    "time"
+)
+
+// Request represents an LLM request with no user identifying information
+type Request struct {
+    ID            string          // Random ID for this request
+    Content       string          // The sanitized content
+    Provider      string          // Which LLM provider to use
+    ModelName     string          // Which model to use
+    Parameters    map[string]any  // Model parameters
+    CreatedAt     time.Time       // When this request was created
+}
+
+// Response represents an LLM response
+type Response struct {
+    RequestID     string          // Matches the request ID
+    Content       string          // The response content
+    CompletedAt   time.Time       // When the response was completed
+}
+
+// AnonymizationConfig specifies how to anonymize requests
+type AnonymizationConfig struct {
+    // How often to rotate proxies
+    ProxyRotationInterval time.Duration
+    
+    // Whether to use TOR for additional anonymity
+    UseTorNetwork bool
+    
+    // Custom headers to remove or modify
+    HeadersToRemove []string
+    
+    // Headers to add or modify for fingerprint randomization
+    FingerprintRandomization bool
+}
+
+// ProxyService handles proxying requests to external LLMs
+type ProxyService struct {
+    sanitizer         *Sanitizer
+    httpClient        *http.Client
+    providers         map[string]ProviderClient
+    proxyManager      *ProxyManager
+    anonymizer        *RequestAnonymizer
+}
+
+// NewProxyService creates a new LLM proxy service
+func NewProxyService(sanitizerModelPath string, anonConfig AnonymizationConfig) (*ProxyService, error) {
+    // Initialize the sanitizer with the local BERT model
+    sanitizer, err := NewSanitizer(sanitizerModelPath)
+    if err != nil {
+        return nil, err
+    }
+    
+    // Create proxy manager for rotating proxies
+    proxyManager, err := NewProxyManager(anonConfig.ProxyRotationInterval, anonConfig.UseTorNetwork)
+    if err != nil {
+        return nil, err
+    }
+    
+    // Create request anonymizer
+    anonymizer := NewRequestAnonymizer(anonConfig)
+    
+    // Create HTTP client with proxy transport
+    transport := &http.Transport{
+        Proxy: proxyManager.GetProxy,
+    }
+    httpClient := &http.Client{
+        Transport: transport,
+        Timeout: 60 * time.Second,
+    }
+    
+    // Initialize provider clients
+    providers := make(map[string]ProviderClient)
+    providers["openai"] = NewOpenAIClient(httpClient)
+    providers["anthropic"] = NewAnthropicClient(httpClient)
+    // Add other providers as needed
+    
+    return &ProxyService{
+        sanitizer:    sanitizer,
+        httpClient:   httpClient,
+        providers:    providers,
+        proxyManager: proxyManager,
+        anonymizer:   anonymizer,
+    }, nil
+}
+
+// ProcessRequest handles sanitizing, anonymizing and forwarding a request to an LLM provider
+func (s *ProxyService) ProcessRequest(ctx context.Context, content, provider, model string, params map[string]any) (*Response, error) {
+    // Generate a random request ID
+    requestID, err := generateRequestID()
+    if err != nil {
+        return nil, err
+    }
+    
+    // Sanitize the content (no user ID needed as this service is completely separate)
+    sanitizedContent, err := s.sanitizer.SanitizeContent(content)
+    if err != nil {
+        return nil, err
+    }
+    
+    // Create the request
+    request := &Request{
+        ID:         requestID,
+        Content:    sanitizedContent,
+        Provider:   provider,
+        ModelName:  model,
+        Parameters: params,
+        CreatedAt:  time.Now(),
+    }
+    
+    // Get the provider client
+    providerClient, ok := s.providers[provider]
+    if !ok {
+        return nil, ErrUnsupportedProvider
+    }
+    
+    // Anonymize the request before sending
+    // This happens at the HTTP level in the anonymizer
+    ctx = s.anonymizer.ContextWithAnonymization(ctx)
+    
+    // Forward to the provider through the anonymized channel
+    responseContent, err := providerClient.SendRequest(ctx, request)
+    if err != nil {
+        return nil, err
+    }
+    
+    // Create the response
+    response := &Response{
+        RequestID:   requestID,
+        Content:     responseContent,
+        CompletedAt: time.Now(),
+    }
+    
+    return response, nil
+}
+
+// Generate a random request ID
+func generateRequestID() (string, error) {
+    bytes := make([]byte, 16)
+    if _, err := rand.Read(bytes); err != nil {
+        return "", err
+    }
+    return hex.EncodeToString(bytes), nil
+}
+
+// ProxyManager handles rotating proxies
+type ProxyManager struct {
+    proxies         []string
+    currentIndex    int
+    rotationTicker  *time.Ticker
+    mu              sync.Mutex
+    useTor          bool
+}
+
+// NewProxyManager creates a new proxy manager
+func NewProxyManager(rotationInterval time.Duration, useTor bool) (*ProxyManager, error) {
+    pm := &ProxyManager{
+        proxies:      []string{}, // Would be populated with proxy servers
+        currentIndex: 0,
+        useTor:       useTor,
+    }
+    
+    // Start rotation ticker
+    pm.rotationTicker = time.NewTicker(rotationInterval)
+    go pm.rotateProxies()
+    
+    return pm, nil
+}
+
+// GetProxy returns the current proxy to use
+func (pm *ProxyManager) GetProxy(req *http.Request) (*url.URL, error) {
+    pm.mu.Lock()
+    defer pm.mu.Unlock()
+    
+    if len(pm.proxies) == 0 {
+        // If no proxies or using Tor directly
+        if pm.useTor {
+            return url.Parse("socks5://127.0.0.1:9050") // Tor SOCKS proxy
+        }
+        return nil, nil // Direct connection
+    }
+    
+    proxyStr := pm.proxies[pm.currentIndex]
+    return url.Parse(proxyStr)
+}
+
+// rotateProxies changes the proxy periodically
+func (pm *ProxyManager) rotateProxies() {
+    for range pm.rotationTicker.C {
+        pm.mu.Lock()
+        if len(pm.proxies) > 0 {
+            pm.currentIndex = (pm.currentIndex + 1) % len(pm.proxies)
+        }
+        pm.mu.Unlock()
+    }
+}
+
+// RequestAnonymizer handles anonymizing HTTP requests
+type RequestAnonymizer struct {
+    config AnonymizationConfig
+}
+
+// NewRequestAnonymizer creates a new request anonymizer
+func NewRequestAnonymizer(config AnonymizationConfig) *RequestAnonymizer {
+    return &RequestAnonymizer{
+        config: config,
+    }
+}
+
+// ContextWithAnonymization returns a context with anonymization settings
+func (ra *RequestAnonymizer) ContextWithAnonymization(ctx context.Context) context.Context {
+    return context.WithValue(ctx, "anonymize", true)
+}
+
+// AnonymizeRequest modifies an outgoing request to anonymize it
+func (ra *RequestAnonymizer) AnonymizeRequest(req *http.Request) {
+    // Remove identifying headers
+    for _, header := range ra.config.HeadersToRemove {
+        req.Header.Del(header)
+    }
+    
+    // Always remove these common identifying headers
+    req.Header.Del("X-Forwarded-For")
+    req.Header.Del("X-Real-IP")
+    req.Header.Del("Referer")
+    req.Header.Del("Cookie")
+    req.Header.Del("Set-Cookie")
+    
+    // Set a generic User-Agent if configured for fingerprint randomization
+    if ra.config.FingerprintRandomization {
+        // Rotate between several common user agents
+        userAgents := []string{
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36",
+        }
+        
+        // Pick a random user agent
+        randIndex := rand.Intn(len(userAgents))
+        req.Header.Set("User-Agent", userAgents[randIndex])
+        
+        // Add some randomization to accept headers
+        req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+        req.Header.Set("Accept", "text/html,application/json,*/*;q=0.8")
+    }
+}
+```
+
+## For the Rust Developer (Tauri Integration)
+
+### New Crate Structure
+
+Create a new crate called `lyn-tauri` with the following structure:
+
+```
+lyn-tauri/
+├── Cargo.toml
+├── src/
+│   ├── main.rs               # Main entry point for Tauri app
+│   ├── app.rs                # App initialization and configuration
+│   ├── commands/             # Tauri commands that bridge to lyn-core
+│   │   ├── mod.rs
+│   │   ├── chat.rs           # Chat commands
+│   │   ├── tools.rs          # Tool execution commands
+│   │   └── settings.rs       # Settings management
+│   ├── pii/                  # Local PII detection using BERT
+│   │   ├── mod.rs
+│   │   ├── model.rs          # BERT model wrapper
+│   │   └── detection.rs      # PII detection logic
+│   ├── error.rs              # Error handling
+│   └── event.rs              # Event handling
+└── tauri.conf.json           # Tauri configuration
+```
+
+### Core Integration
+
+The Tauri application should integrate with `lyn-core` similar to how `lyn-cli` does:
+
+1. Initialize the Lyn Engine
+2. Register Tauri commands that bridge to core functionality
+3. Handle real-time events and streaming responses
+
+### Sample Code: Cargo.toml
+
+```toml
+[package]
+name = "lyn-tauri"
+version = "0.1.0"
+edition = "2024"
+description = "Tauri desktop application for the Lyn AI assistant."
+readme = "../README.md"
+homepage = "https://github.com/your-repo/lyn"
+repository = "https://github.com/your-repo/lyn"
+license = "MIT OR Apache-2.0"
+keywords = ["ai", "assistant", "llm", "privacy", "local", "desktop"]
+
+[build-dependencies]
+tauri-build = { version = "2.0.0", features = [] }
+
+[dependencies]
+# Core engine
+lyn-core = { path = "../lyn-core" }
+
+# Tauri
+tauri = { version = "2.0.0", features = ["shell-open", "window-close", "dialog"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Async runtime (keep consistent with lyn-core)
+async-std = { version = "1.12", features = ["attributes", "unstable", "tokio1"] }
+
+# Error handling
+thiserror = "1.0"
+
+# Logging/Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Async channel for UI communication
+async-channel = "2.3"
+futures-util = "0.3"
+
+# PII detection with BERT
+tract-onnx = "0.19.0"  # ONNX runtime for running the BERT model
+tokenizers = "0.13.0"  # Tokenizer for BERT
+
+[features]
+# Custom feature flags
+custom-protocol = ["tauri/custom-protocol"]
+```
+
+### Sample Code: Local PII Detection Model
+
+```rust
+// src/pii/model.rs
+use std::path::Path;
+use std::sync::Arc;
+use thiserror::Error;
+use tokenizers::Tokenizer;
+use tract_onnx::prelude::*;
+
+#[derive(Debug, Error)]
+pub enum ModelError {
+    #[error("Failed to load model: {0}")]
+    LoadFailed(String),
+    
+    #[error("Failed to load tokenizer: {0}")]
+    TokenizerFailed(String),
+    
+    #[error("Inference error: {0}")]
+    InferenceFailed(String),
+}
+
+pub struct BertModel {
+    model: Arc<SimplePlan<TypedFact, Box<dyn TypedOp>, Graph<TypedFact, Box<dyn TypedOp>>>>,
+    tokenizer: Tokenizer,
+}
+
+impl BertModel {
+    pub fn load<P: AsRef<Path>>(model_path: P, tokenizer_path: P) -> Result<Self, ModelError> {
+        // Load the ONNX model
+        let model = tract_onnx::onnx()
+            .model_for_path(model_path)
+            .map_err(|e| ModelError::LoadFailed(e.to_string()))?
+            .into_optimized()
+            .map_err(|e| ModelError::LoadFailed(e.to_string()))?
+            .into_runnable()
+            .map_err(|e| ModelError::LoadFailed(e.to_string()))?;
+        
+        // Load the tokenizer
+        let tokenizer = Tokenizer::from_file(tokenizer_path)
+            .map_err(|e| ModelError::TokenizerFailed(e.to_string()))?;
+        
+        Ok(Self {
+            model: Arc::new(model),
+            tokenizer,
+        })
+    }
+    
+    pub fn detect_pii(&self, text: &str) -> Result<Vec<PIIDetection>, ModelError> {
+        // Tokenize the input text
+        let encoding = self.tokenizer.encode(text, true)
+            .map_err(|e| ModelError::InferenceFailed(e.to_string()))?;
+        
+        let input_ids = encoding.get_ids();
+        let attention_mask = encoding.get_attention_mask();
+        let token_type_ids = encoding.get_type_ids();
+        
+        // Prepare the input tensors
+        let input_ids_tensor = tract_ndarray::arr1(&input_ids)
+            .into_shape((1, input_ids.len()))
+            .map_err(|e| ModelError::InferenceFailed(e.to_string()))?;
+        
+        let attention_mask_tensor = tract_ndarray::arr1(&attention_mask)
+            .into_shape((1, attention_mask.len()))
+            .map_err(|e| ModelError::InferenceFailed(e.to_string()))?;
+        
+        let token_type_ids_tensor = tract_ndarray::arr1(&token_type_ids)
+            .into_shape((1, token_type_ids.len()))
+            .map_err(|e| ModelError::InferenceFailed(e.to_string()))?;
+        
+        // Run inference
+        let outputs = self.model.run(tvec!(
+            input_ids_tensor.into(),
+            attention_mask_tensor.into(),
+            token_type_ids_tensor.into(),
+        )).map_err(|e| ModelError::InferenceFailed(e.to_string()))?;
+        
+        // Process the model outputs to detect PII
+        // This would depend on the specific model architecture and output format
+        
+        // For demonstration, let's assume we get token-level class probabilities
+        // and need to convert them to PII detections
+        let mut detections = Vec::new();
+        
+        // TODO: Implement extraction of PII detections from model outputs
+        
+        Ok(detections)
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PIIDetection {
+    pub pii_type: PIIType,
+    pub confidence: f32,
+    pub start: usize,
+    pub end: usize,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum PIIType {
+    Email,
+    PhoneNumber,
+    Address,
+    CreditCard,
+    SSN,
+    Name,
+    Other(String),
+}
+```
+
+### Sample Code: PII Detection API
+
+```rust
+// src/pii/detection.rs
+use std::sync::Arc;
+use std::path::Path;
+use tauri::State;
+use tokio::sync::Mutex;
+use crate::pii::model::{BertModel, PIIDetection, ModelError};
+
+// State to hold the loaded model
+pub struct PIIDetectionState {
+    model: Arc<Mutex<BertModel>>,
+}
+
+impl PIIDetectionState {
+    pub fn new<P: AsRef<Path>>(model_path: P, tokenizer_path: P) -> Result<Self, ModelError> {
+        let model = BertModel::load(model_path, tokenizer_path)?;
+        Ok(Self {
+            model: Arc::new(Mutex::new(model)),
+        })
+    }
+    
+    pub async fn detect_pii(&self, text: &str) -> Result<Vec<PIIDetection>, ModelError> {
+        let model = self.model.lock().await;
+        model.detect_pii(text)
+    }
+}
+
+#[tauri::command]
+pub async fn scan_for_pii(
+    state: State<'_, PIIDetectionState>,
+    text: String,
+) -> Result<Vec<PIIDetection>, String> {
+    state.detect_pii(&text)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn sanitize_text(
+    state: State<'_, PIIDetectionState>,
+    text: String,
+) -> Result<String, String> {
+    let detections = state.detect_pii(&text)
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    // Create a sanitized version of the text by replacing detected PII
+    let mut sanitized = text.clone();
+    
+    // Sort detections by position in reverse order so we can replace from end to beginning
+    // without affecting the positions of other detections
+    let mut sorted_detections = detections;
+    sorted_detections.sort_by(|a, b| b.start.cmp(&a.start));
+    
+    for detection in sorted_detections {
+        let replacement = match detection.pii_type {
+            crate::pii::model::PIIType::Email => "[EMAIL]",
+            crate::pii::model::PIIType::PhoneNumber => "[PHONE]",
+            crate::pii::model::PIIType::Address => "[ADDRESS]",
+            crate::pii::model::PIIType::CreditCard => "[CREDIT_CARD]",
+            crate::pii::model::PIIType::SSN => "[SSN]",
+            crate::pii::model::PIIType::Name => "[NAME]",
+            crate::pii::model::PIIType::Other(_) => "[REDACTED]",
+        };
+        
+        sanitized.replace_range(detection.start..detection.end, replacement);
+    }
+    
+    Ok(sanitized)
+}
+```
+
+### Sample Code: Integration with Chat Commands
+
+```rust
+// src/commands/chat.rs
+use tauri::State;
+use lyn_core::core::Engine;
+use serde::{Deserialize, Serialize};
+use futures_util::{StreamExt, Stream};
+use std::pin::Pin;
+use crate::pii::detection::PIIDetectionState;
+
+#[derive(Debug, Serialize)]
+pub struct ChatResponse {
+    message_id: String,
+    content: String,
+    is_complete: bool,
+    thought_process: Option<String>,
+    tools: Vec<ToolCall>,
+    pii_detections: Vec<crate::pii::model::PIIDetection>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ToolCall {
+    name: String,
+    arguments: serde_json::Value,
+    result: Option<serde_json::Value>,
+}
+
+#[tauri::command]
+pub async fn send_message(
+    engine: State<'_, Engine>,
+    pii_state: State<'_, PIIDetectionState>,
+    message: String,
+) -> Result<String, String> {
+    let window = tauri::WebviewWindow::get("main").expect("main window not found");
+    
+    // First scan for PII in the user's message
+    let pii_detections = pii_state.detect_pii(&message)
+        .await
+        .map_err(|e| format!("PII detection failed: {}", e))?;
+    
+    // Notify about detected PII if any
+    if !pii_detections.is_empty() {
+        let _ = window.emit("chat:pii_detected", &pii_detections);
+    }
+    
+    // Start streaming response
+    match engine.process_prompt_stream(&message).await {
+        Ok(stream) => {
+            let message_id = uuid::Uuid::new_v4().to_string();
+            
+            // Process the stream and emit events to the frontend
+            process_stream(stream, message_id.clone(), pii_detections, window).await;
+            
+            Ok(message_id)
+        },
+        Err(err) => Err(format!("Failed to process message: {}", err)),
+    }
+}
+
+async fn process_stream(
+    mut stream: Pin<Box<dyn Stream<Item = Result<String, lyn_core::prelude::Error>> + Send>>,
+    message_id: String,
+    pii_detections: Vec<crate::pii::model::PIIDetection>,
+    window: tauri::WebviewWindow,
+) {
+    let mut buffer = String::new();
+    
+    while let Some(result) = stream.next().await {
+        match result {
+            Ok(chunk) => {
+                buffer.push_str(&chunk);
+                
+                // Emit chunk to frontend
+                let _ = window.emit("chat:chunk", ChatResponse {
+                    message_id: message_id.clone(),
+                    content: buffer.clone(),
+                    is_complete: false,
+                    thought_process: None,
+                    tools: vec![],
+                    pii_detections: pii_detections.clone(),
+                });
+            },
+            Err(err) => {
+                let _ = window.emit("chat:error", format!("Error: {}", err));
+                return;
+            }
+        }
+    }
+    
+    // Send final complete message
+    let _ = window.emit("chat:complete", ChatResponse {
+        message_id,
+        content: buffer,
+        is_complete: true,
+        thought_process: None, // In a real implementation, extract this from the response
+        tools: vec![], // In a real implementation, extract tool calls
+        pii_detections,
+    });
+}
+```
+
+## Implementation Timeline
+
+### Phase 1: Core Foundation
+- **Environment Setup**:  
+  - Prepare development stacks for Svelte/Solid, Go, and Rust (Tauri)
+  - Set up the local PII detection model integration
+- **Basic UI Components**:  
+  - Implement primary chat layout, message components, and visual theme
+- **Backend Services Setup**:  
+  - Set up three completely separate services:
+    - Web Application Service (Go backend)
+    - User Data Service (isolated storage)
+    - LLM Proxy Service (with web PII detection and anonymization)
+
+### Phase 2: Feature Development
+- **PII Detection Implementation**:  
+  - Integrate the local distilled BERT model into both:
+    - The Tauri app for desktop users
+    - The LLM Proxy Service for web users
+  - Optimize model for performance (quantization, caching)
+- **Request Anonymization**:
+  - Implement proxy rotation and fingerprint obfuscation techniques
+  - Test anonymity to ensure external LLMs cannot track users
+- **Real-Time Chat Streaming**:  
+  - Implement WebSocket and REST APIs for chat and settings
+- **Tool Integration**:  
+  - Integrate tool-call functionality and associated UI components
+- **Settings Module**:  
+  - Develop and integrate adaptive settings menus and authentication flows
+
+### Phase 3: Security & Polish
+- **Enhanced Security Measures**:  
+  - Enforce encryption, audit logging, and MFA
+  - Verify complete separation between services
+  - Test anonymization effectiveness against LLM provider tracking
+- **UI/UX Refinement**:  
+  - Enhance animations, interactions, and responsive design
+  - Refine security mascot notifications
+- **Cross-Platform Testing**:  
+  - Validate consistent performance across web and desktop platforms
+- **Performance Optimization**:  
+  - Optimize local model inference (caching, warm-up techniques)
+  - Ensure responsive UI even during PII detection
+
+## Integration Points
+
+### Frontend ↔ Go Backend
+- REST API endpoints for user data, settings
+- WebSocket for real-time streaming of AI responses
+- Authentication flows
+
+### Go Backend ↔ User Data Service
+- Encrypted API calls for data storage and retrieval
+- Strong authentication between services
+
+### Go Backend ↔ LLM Proxy Service
+- One-way communication channel for sanitized requests
+- No user identifying information passed between services
+
+### Tauri App ↔ Frontend
+- Direct access to shared web components
+- Tauri commands for native functionality
+- Local PII detection integrated into the UI flow
+
+## Team Responsibilities
+
+- **Frontend Teams**: Build and refine Svelte/Solid components
+- **Backend Teams**: 
+  - Develop the Go Web Backend Service
+  - Create the User Data Service
+  - Build the completely separate LLM Proxy Service with anonymization
+- **Security Team**: 
+  - Verify complete isolation between services
+  - Implement and test request anonymization for external LLMs
+  - Oversee robust PII detection implementation
+  - Implement audit trails and policy compliance
+- **Desktop Integration**: 
+  - Implement Rust/Tauri bridging to `lyn-core`
+  - Integrate local PII detection using the distilled BERT model
+
+## Open Areas for Adaptation
+
+- **Anonymization Techniques**:
+  - Experiment with different proxy rotation strategies
+  - Evaluate effectiveness of fingerprint randomization
+  - Consider adding additional layers of request obfuscation
+- **PII Detection Model**:
+  - Evaluate performance/accuracy of different BERT model sizes
+  - Consider additional optimizations like pruning or model distillation
+  - Implement incremental model updates without requiring full application updates
+- **Service Separation**:
+  - Continuously verify and test the separation between services
+  - Consider additional isolation techniques like separate hosting or containerization
+- **Performance Tuning**:
+  - Monitor BERT model inference latency
+  - Consider running inference on a background thread to prevent UI blocking
+  - Implement warm-up and caching strategies to improve response times

@@ -17,12 +17,12 @@ export interface WebSocketState {
 /**
  * Creates a Svelte store that manages a WebSocket connection.
  * @param {string} url - The WebSocket URL to connect to.
- * @param {number} [maxReconnectAttempts=3] - Maximum number of reconnection attempts.
+ * @param {number} [maxReconnectAttempts=5] - Maximum number of reconnection attempts.
  * @returns {WebSocketStore} A readable store with WebSocket management methods.
  */
 export function createWebSocketStore(
     url: string,
-    maxReconnectAttempts: number = 3
+    maxReconnectAttempts: number = 5
 ): WebSocketStore {
     // Create the internal state store
     const state: Writable<WebSocketState> = writable({
@@ -78,12 +78,18 @@ export function createWebSocketStore(
 
             ws.onclose = () => {
                 state.update(s => ({ ...s, connected: false }));
+                console.log('WebSocket connection closed');
 
                 // Attempt to reconnect if we haven't exceeded the maximum attempts
+                // Use a longer delay to prevent rapid reconnection attempts
                 if (reconnectAttempts < maxReconnectAttempts) {
                     reconnectAttempts++;
-                    reconnectTimeout = setTimeout(connect, 1000 * reconnectAttempts);
+                    // Use a longer base delay (5 seconds) with exponential backoff
+                    const delay = 5000 * reconnectAttempts;
+                    console.log(`Will attempt to reconnect in ${delay/1000} seconds (attempt ${reconnectAttempts}/${maxReconnectAttempts})`);
+                    reconnectTimeout = setTimeout(connect, delay);
                 } else {
+                    console.log(`Failed to connect after ${maxReconnectAttempts} attempts`);
                     state.update(s => ({
                         ...s,
                         error: `Failed to connect after ${maxReconnectAttempts} attempts`
@@ -93,9 +99,18 @@ export function createWebSocketStore(
 
             ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
+                console.error('WebSocket URL:', url);
+                console.error('WebSocket readyState:', ws?.readyState);
+
+                // Try to provide more detailed error information
+                let errorMessage = 'Connection error occurred';
+                if (error && (error as any).message) {
+                    errorMessage += `: ${(error as any).message}`;
+                }
+
                 state.update(s => ({
                     ...s,
-                    error: 'Connection error occurred'
+                    error: errorMessage
                 }));
             };
         } catch (error) {
@@ -162,25 +177,67 @@ export function createWebSocketStore(
 // Development mode flag
 export const isDevelopment = import.meta.env.DEV;
 
+// Check if we're in a browser environment before accessing window
+const isBrowser = typeof window !== 'undefined' && typeof WebSocket !== 'undefined';
+
 // Create a singleton instance for the default WebSocket URL
 // This can be imported and used throughout the application
-const defaultWsUrl = isDevelopment ? 'ws://localhost:8080' : 'wss://api.lyn.ai';
-const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || defaultWsUrl;
+// When running in Docker, we need to use the window.location.hostname to ensure proper connection
+const getWebSocketUrl = () => {
+    if (isDevelopment) {
+        // In development, use the current hostname with the correct port
+        // Only access window if in browser environment
+        if (isBrowser) {
+            const hostname = window.location.hostname;
+            return `ws://${hostname}:8083`;
+        }
+        // Default for SSR in development
+        return 'ws://localhost:8083';
+    }
+    return 'wss://api.lyn.ai'; // Production URL
+};
+
+const WS_BASE_URL = getWebSocketUrl();
 
 // Create the WebSocket store
-export const websocketStore = createWebSocketStore(`${WS_BASE_URL}/ws/chat`);
+export const websocketStore = isBrowser
+    ? createWebSocketStore(`${WS_BASE_URL}/ws/chat`)
+    : {
+        subscribe: () => { return () => {}; },
+        connect: () => {},
+        disconnect: () => {},
+        send: () => false,
+        isConnected: () => false
+      } as WebSocketStore;
 
 // Auto-connect in development mode for easier testing
-if (isDevelopment) {
+if (isBrowser && isDevelopment) {
     console.log(`Development mode detected. WebSocket will auto-connect to ${WS_BASE_URL}/ws/chat`);
-    // Auto-connect after a short delay to ensure the backend is ready
+
+    // Safe access to window properties
+    if (typeof window !== 'undefined') {
+        console.log(`Using hostname: ${window.location.hostname}`);
+        console.log(`Full window.location: ${window.location.href}`);
+    }
+
+    // Auto-connect after a longer delay to ensure the backend is ready
+    // This helps prevent rapid reconnection attempts
     setTimeout(() => {
         websocketStore.connect();
         console.log('Auto-connecting to WebSocket...');
-    }, 1000);
+    }, 3000);
 }
 
 // Export a function to create additional WebSocket connections if needed
 export function createChatWebSocketStore(chatId: string): WebSocketStore {
+    if (!isBrowser) {
+        return {
+            subscribe: () => { return () => {}; },
+            connect: () => {},
+            disconnect: () => {},
+            send: () => false,
+            isConnected: () => false
+        } as WebSocketStore;
+    }
     return createWebSocketStore(`${WS_BASE_URL}/ws/chat/${chatId}`);
 }

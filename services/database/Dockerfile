@@ -9,11 +9,11 @@ RUN apt-get update && \
 
 # The binary will be mounted from the shared volume
 
-# Create a directory for static files
-RUN mkdir -p /app/static
-
 # Expose the port
-EXPOSE 8080
+EXPOSE 8081
+
+# Set environment variables
+ENV SERVER_HOST=0.0.0.0
 
 # Run the binary from the mounted volume
-CMD ["/app/target/debug/backend"]
+CMD ["/app/target/debug/database"]
