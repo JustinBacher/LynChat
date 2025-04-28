@@ -1,14 +1,16 @@
 <script lang="ts">
-	import {slide} from 'svelte/transition';
+	import { slide } from 'svelte/transition';
+	import { Textarea, Button } from 'flowbite-svelte';
+	import { PaperPlaneOutline } from 'flowbite-svelte-icons';
 
-	let textareaElement: HTMLTextAreaElement;
-
-	function autoResize() {
-		if (textareaElement) {
+	// With Flowbite Svelte, we'll use a different approach for auto-resizing
+	function autoResize(e: Event) {
+		const textarea = e.target as HTMLTextAreaElement;
+		if (textarea) {
 			// Reset height to allow shrinking
-			textareaElement.style.height = 'auto';
+			textarea.style.height = 'auto';
 			// Set the height to match the scroll height
-			textareaElement.style.height = textareaElement.scrollHeight + 'px';
+			textarea.style.height = textarea.scrollHeight + 'px';
 		}
 	}
 </script>
@@ -19,26 +21,18 @@
 		class="min-w-2xl grid w-full grid-cols-[1fr_auto] grid-rows-1 gap-4"
 	>
 		<div class="grid-item">
-			<textarea
-				bind:this={textareaElement}
-				class="textarea textarea-lg textarea-autosize textarea-secondary w-full"
+			<Textarea
+				class="min-h-[3rem] resize-none transition-height duration-100 ease-in"
 				on:input={autoResize}
-			></textarea>
+				rows={1}
+			/>
 		</div>
 		<div class="grid-item self-end">
-			<button class="btn btn-primary btn-lg" aria-label="Send">
-				<i class="fa-solid fa-paper-plane"></i>
-			</button>
+			<Button size="lg" color="primary" aria-label="Send">
+				<PaperPlaneOutline class="w-5 h-5" />
+			</Button>
 		</div>
 	</div>
 </div>
 
-<style lang="less">
-	.textarea-autosize {
-		height: 1rem;
-		overflow: hidden; // Hide scrollbar
-		resize: none; // Prevent manual resizing handle
-		line-height: 1.5rem;
-		transition: height 0.1s ease;
-	}
-</style>
+

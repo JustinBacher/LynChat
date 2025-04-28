@@ -1,18 +1,17 @@
 <script lang="ts">
+	import NavBar from '$lib/components/NavBar.svelte';
 	import '../app.css';
-	import Navigation from '$lib/components/Navigation.svelte';
+	import { Footer } from 'flowbite-svelte';
 
 	let { children } = $props();
 </script>
 
 <div class="app min-h-screen flex flex-col">
-    <Navigation />
+    <NavBar />
     <main class="flex-grow">
         {@render children()}
     </main>
-    <footer class="footer footer-center p-4 bg-base-300 text-base-content">
-        <div>
-            <p>Copyright © 2024 - Lyn AI Assistant</p>
-        </div>
-    </footer>
+    <Footer footerType="logo">
+        <p>Copyright © 2024 - Lyn AI Assistant</p>
+    </Footer>
 </div>

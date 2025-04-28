@@ -5,8 +5,11 @@ use std::env;
 use std::io::Result;
 
 // Import modules
+mod error;
+mod prelude;
 mod routes;
 mod websocket;
+mod streaming;
 
 #[actix_web::main]
 async fn main() -> Result<()> {

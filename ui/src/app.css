@@ -3,10 +3,63 @@
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
 
+@plugin 'flowbite/plugin';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
-  --font-sans: 'Fredoka', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Delius Swash Caps', cursive;
+
+  /* Custom primary colors for Flowbite - Prussian Blue */
+  --color-primary-50: #eef1f7;
+  --color-primary-100: #d4dbe8;
+  --color-primary-200: #b9c5d9;
+  --color-primary-300: #9eafca;
+  --color-primary-400: #8399bb;
+  --color-primary-500: #6883ac;
+  --color-primary-600: #4d6d9d;
+  --color-primary-700: #345995;
+  /* Primary Prussian blue */
+  --color-primary-800: #294776;
+  --color-primary-900: #1e3557;
+
+  /* Custom colors for dark mode */
+  --color-dark-50: #f9fafb;
+  --color-dark-100: #f3f4f6;
+  --color-dark-200: #e5e7eb;
+  --color-dark-300: #d1d5db;
+  --color-dark-400: #9ca3af;
+  --color-dark-500: #6b7280;
+  --color-dark-600: #4b5563;
+  --color-dark-700: #374151;
+  --color-dark-800: #1f2937;
+  --color-dark-900: #111827;
+
+  /* Accent colors */
+  --color-autumn-600: #F76F3B;
+  /* Accent autumn orange */
+  --color-mustard-400: #EFC94C;
+  /* Accent mustard yellow */
 }
 
-@plugin "daisyui" {
-  themes: all;
+@source "../node_modules/flowbite-svelte/dist";
+
+/* Global styles */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  transition: background-color 0.3s ease;
+}
+
+/* Improve dark mode text readability */
+.dark {
+  color-scheme: dark;
+}
+
+/* Smooth transitions for theme changes */
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
