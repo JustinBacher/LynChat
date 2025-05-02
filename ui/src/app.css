@@ -18,8 +18,7 @@
   --color-primary-400: #8399bb;
   --color-primary-500: #6883ac;
   --color-primary-600: #4d6d9d;
-  --color-primary-700: #345995;
-  /* Primary Prussian blue */
+  --color-primary-700: #345995; /* Primary Prussian blue */
   --color-primary-800: #294776;
   --color-primary-900: #1e3557;
 
@@ -36,10 +35,8 @@
   --color-dark-900: #111827;
 
   /* Accent colors */
-  --color-autumn-600: #F76F3B;
-  /* Accent autumn orange */
-  --color-mustard-400: #EFC94C;
-  /* Accent mustard yellow */
+  --color-autumn-600: #F76F3B; /* Accent autumn orange */
+  --color-mustard-400: #EFC94C; /* Accent mustard yellow */
 }
 
 @source "../node_modules/flowbite-svelte/dist";

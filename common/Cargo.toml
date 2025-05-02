@@ -25,17 +25,23 @@ qdrant-client = { version = "1.9" }
 url = { version = "2.5.4", features = ["serde"] }
 
 # Workspace Dependencies
-async-std = { workspace = true }
-async-stream = { workspace = true }
-async-trait = { workspace = true }
-color-eyre = { workspace = true }
-futures = { workspace = true }
-futures-util = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-thiserror = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-itertools = { workspace = true }
-uuid = { workspace = true }
+async-std = { version = "1.12", features = ["attributes", "tokio1"] }
+async-stream = "0.3.6"
+async-trait = "0.1"
+color-eyre = "0.6"
+futures = "0.3.31"
+futures-util = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = [
+    "env-filter",
+    "alloc",
+    "fmt",
+    "local-time",
+    "registry",
+] }
+itertools = "0.14.0"
+uuid = { version = "1.8", features = ["v4", "serde"] }
 toml = "0.8.20"

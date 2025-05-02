@@ -3,6 +3,8 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import { gsap } from 'gsap';
+	import { Heading } from 'flowbite-svelte';
+	import { fade, fly, crossfade } from 'svelte/transition';
 
 	let logoRef: HTMLDivElement;
 
@@ -75,11 +77,11 @@
 				/>
 			</svg>
 		</div>
-		<h1
-			class="animate-fade-up animate-once animate-duration-1500 handwritten-text pt-10 text-center text-5xl font-bold"
-		>
-			Hi Justin!
-		</h1>
+		<div in:fade={{ duration: 700 }}>
+			<div in:fly={{ y: 40, duration: 700 }}>
+				<Heading class="handwritten-text pt-10 text-center text-5xl font-bold">Hi Justin!</Heading>
+			</div>
+		</div>
 	</div>
 	<StartChat />
 </div>
@@ -108,12 +110,6 @@
 		stroke: currentColor;
 		stroke-width: 2;
 		vector-effect: non-scaling-stroke;
-	}
-
-	.handwritten-text {
-		stroke-dasharray: 1000; /* A long dash array */
-		stroke-dashoffset: 1000; /* Initially hidden */
-		animation: draw 3s linear forwards; /* Animation definition */
 	}
 
 	@keyframes draw {

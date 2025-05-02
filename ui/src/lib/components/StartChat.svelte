@@ -118,23 +118,19 @@
 	<div
 		class="min-w-2xl w-full flex flex-col gap-4"
 	>
-		<!-- Example prompts -->
-		<div class="flex justify-center gap-2 mb-6 w-1/2 mx-auto">
+		<div class="flex flex-wrap justify-start gap-2 mb-6 w-2/3 mx-auto">
 			{#each selectedPrompts as prompt}
 				<Badge
 					rounded
 					color="primary"
-					class="cursor-pointer hover:bg-primary-200 dark:hover:bg-primary-600 transition-colors text-base py-1.5 px-3 flex-shrink-0 h-auto flex items-start text-left break-words max-w-[120px] whitespace-normal"
+					class="cursor-pointer hover:bg-primary-200 dark:hover:bg-primary-600 transition-colors text-base py-1.5 px-3 flex-shrink-0 h-auto text-left break-words whitespace-normal"
 					on:click={() => handlePromptClick(prompt)}
 				>
-					<div class="w-full">
-						{prompt}
-					</div>
+					{prompt}
 				</Badge>
 			{/each}
 		</div>
 
-		<!-- Input area -->
 		<div class="grid w-full grid-cols-[1fr_auto] grid-rows-1 gap-4">
 			<div class="grid-item">
 				<Textarea
@@ -154,5 +150,3 @@
 		</div>
 	</div>
 </div>
-
-

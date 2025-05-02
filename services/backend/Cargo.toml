@@ -8,7 +8,6 @@ name = "backend"
 path = "src/main.rs"
 
 [dependencies]
-# Crate Specific Dependencies
 actix = "0.13"
 actix-web = "4.10"
 actix-files = "0.6"
@@ -16,13 +15,16 @@ actix-web-actors = "4.3"
 actix-web-thiserror = "0.2"
 actix-cors = "0.6"
 env_logger = "0.10"
-
-# Workspace Dependencies
-surf = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-thiserror = { workspace = true }
-tide = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-
+surf = "2.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tide = "0.16"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = [
+    "env-filter",
+    "alloc",
+    "fmt",
+    "local-time",
+    "registry",
+] }

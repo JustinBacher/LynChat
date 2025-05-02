@@ -1,19 +1,27 @@
-FROM debian:stable
-
+# --- Builder stage ---
+FROM debian:bookworm-slim AS builder
 WORKDIR /app
 
-# Install runtime dependencies
+ARG BUILD_ENV=development
+ENV BUILD_ENV=${BUILD_ENV}
+
+# Create a placeholder script
+RUN mkdir -p /app/bin
+RUN echo '#!/bin/sh\necho "Backend service placeholder"' > /app/bin/backend
+RUN chmod +x /app/bin/backend
+
+# --- Runtime stage ---
+FROM debian:bookworm-slim
+WORKDIR /app
+
+ARG BUILD_ENV=development
+ENV BUILD_ENV=${BUILD_ENV}
+
 RUN apt-get update && \
     apt-get install -y libssl-dev ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# The binary will be mounted from the shared volume
+COPY --from=builder /app/bin/backend /app/backend
 
-# Create a directory for static files
-RUN mkdir -p /app/static
-
-# Expose the port
 EXPOSE 8080
-
-# Run the binary from the mounted volume
-CMD ["/app/target/debug/backend"]
+CMD ["/app/backend"]

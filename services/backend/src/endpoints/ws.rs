@@ -1,7 +1,7 @@
 use actix::{Actor, StreamHandler};
-use actix_web::{web, HttpRequest, HttpResponse, Error, get};
+use actix_web::{get, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use log::{info, error};
+use tracing::info;
 
 // This WebSocket handler is deprecated.
 // The actual WebSocket implementation is in the llm-proxy service.
@@ -26,10 +26,16 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ChatWs {
 }
 
 #[get("/ws/chat")]
-pub async fn ws_chat_handler(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+pub async fn ws_chat_handler(
+    req: HttpRequest,
+    stream: web::Payload,
+) -> Result<HttpResponse, Error> {
     // Log a warning that this WebSocket handler is deprecated
     if let Some(addr) = req.peer_addr() {
-        info!("Connection to deprecated WebSocket endpoint from IP: {}", addr);
+        info!(
+            "Connection to deprecated WebSocket endpoint from IP: {}",
+            addr
+        );
     }
 
     ws::start(ChatWs {}, &req, stream)

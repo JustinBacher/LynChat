@@ -91,6 +91,8 @@ export function createChatStore(): ChatStore {
 
     // Send a message and get streaming response
     const sendMessage = async (message: string, options: ChatOptions = {}): Promise<string> => {
+        console.log('chatStore.sendMessage called with message:', message);
+
         // Cancel any existing request
         cancelRequest();
 
@@ -110,12 +112,12 @@ export function createChatStore(): ChatStore {
                 reasoning_enabled: options.reasoningEnabled
             };
 
-            if (isDevelopment) {
-                console.log('Sending message to streaming API:', payload);
-            }
+            const apiUrl = `${API_BASE_URL}/stream/chat`;
+            console.log('API URL:', apiUrl);
+            console.log('Sending message to streaming API:', payload);
 
             // Make the fetch request
-            fetch(`${API_BASE_URL}/stream/chat`, {
+            fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -137,6 +139,7 @@ export function createChatStore(): ChatStore {
                 const decoder = new TextDecoder();
                 let accumulatedContent = '';
                 let buffer = '';
+                let receivedAnyEvent = false;
 
                 // Function to process the stream
                 const processStream = async () => {
@@ -166,6 +169,9 @@ export function createChatStore(): ChatStore {
                                         if (isDevelopment) {
                                             console.log('Received event:', event);
                                         }
+
+                                        // Mark that we received an event
+                                        receivedAnyEvent = true;
 
                                         // Process different event types
                                         if (event.event === 'start') {
@@ -227,19 +233,28 @@ export function createChatStore(): ChatStore {
                             }
                         }
 
-                        // If we get here without resolving, the stream ended unexpectedly
+                        // If we get here without resolving, the stream ended without a proper end event
                         if (accumulatedContent) {
                             // If we have accumulated content, resolve with that
+                            console.info("Stream ended without proper end event, but we have content");
                             state.update(s => ({ ...s, isStreaming: false }));
                             resolve(accumulatedContent);
                         } else {
-                            // Otherwise, reject with an error
-                            state.update(s => ({
-                                ...s,
-                                isStreaming: false,
-                                error: 'Stream ended unexpectedly'
-                            }));
-                            reject(new Error('Stream ended unexpectedly'));
+                            // Check if we received any events at all
+                            if (receivedAnyEvent) {
+                                console.warn("Stream ended without content but we received some events");
+                                state.update(s => ({ ...s, isStreaming: false }));
+                                resolve("The model didn't generate any content. This might be due to an issue with the model or the prompt.");
+                            } else {
+                                // Otherwise, reject with an error
+                                console.error("Stream ended unexpectedly without any content or events");
+                                state.update(s => ({
+                                    ...s,
+                                    isStreaming: false,
+                                    error: 'Stream ended without generating any content'
+                                }));
+                                reject(new Error('Stream ended without generating any content'));
+                            }
                         }
                     } catch (err) {
                         // Handle errors during stream processing
@@ -267,6 +282,18 @@ export function createChatStore(): ChatStore {
             .catch(error => {
                 // Handle fetch errors
                 console.error('Fetch error:', error);
+                console.error('Error details:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack,
+                    cause: error.cause
+                });
+
+                // Check for network errors
+                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    console.error('Network error: Check if the llm-proxy service is running on port 8083');
+                }
+
                 state.update(s => ({
                     ...s,
                     isStreaming: false,
@@ -308,10 +335,46 @@ export const isDevelopment = import.meta.env.DEV;
 // Check if we're in a browser environment
 const isBrowser = typeof window !== 'undefined' && typeof fetch !== 'undefined';
 
+// Function to check if the llm-proxy service is running
+export async function checkLLMProxyHealth(): Promise<boolean> {
+    try {
+        const apiBaseUrl = (() => {
+            if (isDevelopment) {
+                if (isBrowser) {
+                    const hostname = window.location.hostname;
+                    return `http://${hostname}:8083`;
+                }
+                return 'http://localhost:8083';
+            }
+            return 'https://api.lyn.ai';
+        })();
+
+        console.log('Checking LLM proxy health at:', `${apiBaseUrl}/health`);
+        const response = await fetch(`${apiBaseUrl}/health`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'text/plain'
+            }
+        });
+
+        if (response.ok) {
+            const text = await response.text();
+            console.log('LLM proxy health check response:', text);
+            return true;
+        } else {
+            console.error('LLM proxy health check failed with status:', response.status);
+            return false;
+        }
+    } catch (error) {
+        console.error('LLM proxy health check error:', error);
+        return false;
+    }
+}
+
 // Create a singleton instance of the chat store
 export const chatStore = createChatStore();
 
-// Log in development mode
+// Log in development mode and check service health
 if (isDevelopment && isBrowser) {
     console.log('Development mode detected. Chat store initialized.');
 
@@ -324,4 +387,14 @@ if (isDevelopment && isBrowser) {
         console.error('Global error:', message, source, lineno, colno, error);
         return false;
     };
+
+    // Check if the llm-proxy service is running
+    checkLLMProxyHealth().then(isHealthy => {
+        if (isHealthy) {
+            console.log('LLM proxy service is running and healthy');
+        } else {
+            console.error('LLM proxy service is not running or not healthy');
+            console.error('Please make sure the llm-proxy service is running on port 8083');
+        }
+    });
 }

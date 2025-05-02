@@ -8,21 +8,22 @@
 </script>
 
 <script lang="ts">
-	import { Textarea, Button, Dropdown, DropdownItem } from 'flowbite-svelte';
-	import { PaperPlaneOutline, BrainOutline, ChevronDownOutline } from 'flowbite-svelte-icons';
+	import { Textarea, Button, Dropdown, DropdownItem, Alert } from 'flowbite-svelte';
+	import { PaperPlaneOutline, BrainOutline, ChevronDownOutline, InfoCircleSolid } from 'flowbite-svelte-icons';
 	import { onMount, onDestroy } from 'svelte';
-	import { chatStore, type ChatOptions } from '$lib/stores/chatStore';
+	import { chatStore, type ChatOptions, checkLLMProxyHealth } from '$lib/stores/chatStore';
 
 	// Props for messages and disabled state
 	export let messages: Message[] = [];
 	export let disabled: boolean = false;
 	// Callback prop for handling messages (legacy support)
-	export let onMessage: (text: string) => void = () => {};
+	export const onMessage: (text: string) => void = () => {};
 
 	let newMessageText: string = ''; // To hold the text being typed in the input
 	let reasoningEnabled: boolean = false; // Toggle for reasoning mode
 	let selectedModel: string = 'Default Model'; // Currently selected model
 	let isStreaming: boolean = false; // Track if we're currently streaming a response
+	let serviceStatus: 'checking' | 'healthy' | 'unhealthy' = 'checking'; // Track the status of the llm-proxy service
 
 	// Subscribe to the chat store state
 	const unsubscribe = chatStore.subscribe(state => {
@@ -43,12 +44,32 @@
 
 	// Function to handle sending a message
 	async function handleSendMessage() {
+		console.log('handleSendMessage called with text:', newMessageText);
 		if (newMessageText.trim()) {
 			const messageText = newMessageText;
 			newMessageText = ''; // Clear the input immediately
 
+			console.log('Adding user message to array');
 			// Add user message to the messages array
 			messages = [...messages, { text: messageText, sender: 'user', isError: false }];
+
+			// Check service status before proceeding
+			if (serviceStatus === 'unhealthy') {
+				// Add an error message if the service is not available
+				messages = [...messages, {
+					text: 'Error: LLM proxy service is not available. Please check that the service is running.',
+					sender: 'ai',
+					isError: true
+				}];
+
+				// Try to check the service status again
+				checkLLMProxyHealth().then(isHealthy => {
+					serviceStatus = isHealthy ? 'healthy' : 'unhealthy';
+					console.log('Updated LLM proxy service status:', serviceStatus);
+				});
+
+				return;
+			}
 
 			// Add a "thinking" message from the AI
 			const thinkingIndex = messages.length;
@@ -61,8 +82,10 @@
 					reasoningEnabled
 				};
 
+				console.log('Sending message to chatStore with options:', options);
 				// Use the chat store to send the message and get a streaming response
 				const finalResponse = await chatStore.sendMessage(messageText, options);
+				console.log('Received final response:', finalResponse);
 
 				// Replace the "thinking" message with the final response
 				messages[thinkingIndex] = {
@@ -71,6 +94,9 @@
 					isError: false
 				};
 				messages = [...messages]; // Trigger reactivity
+
+				// Service is definitely healthy if we got here
+				serviceStatus = 'healthy';
 			} catch (err) {
 				const error = err as Error;
 				console.error('Error sending message:', error);
@@ -82,6 +108,12 @@
 					isError: true
 				};
 				messages = [...messages]; // Trigger reactivity
+
+				// Check if this is a connection error
+				if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+					serviceStatus = 'unhealthy';
+					console.error('Connection error - marking service as unhealthy');
+				}
 			}
 		}
 	}
@@ -154,6 +186,12 @@
 
 	onMount(() => {
 		setupStreamEventListeners();
+
+		// Check if the llm-proxy service is running
+		checkLLMProxyHealth().then(isHealthy => {
+			serviceStatus = isHealthy ? 'healthy' : 'unhealthy';
+			console.log('LLM proxy service status:', serviceStatus);
+		});
 	});
 
 	onDestroy(() => {
@@ -165,6 +203,18 @@
 </script>
 
 <div class="flex h-full flex-col">
+	{#if serviceStatus === 'unhealthy'}
+		<Alert color="red" class="mb-4">
+			<InfoCircleSolid slot="icon" class="h-4 w-4" />
+			<span class="font-medium">Service Error!</span> The LLM proxy service is not running or not accessible. Messages will not be sent.
+		</Alert>
+	{:else if serviceStatus === 'checking'}
+		<Alert color="yellow" class="mb-4">
+			<InfoCircleSolid slot="icon" class="h-4 w-4" />
+			<span class="font-medium">Checking...</span> Verifying connection to the LLM proxy service.
+		</Alert>
+	{/if}
+
 	<div class="flex-1 space-y-4 overflow-y-auto p-4 mb-auto">
 		{#each messages as message}
 			<!-- Flowbite styled chat bubble -->
@@ -192,9 +242,9 @@
 			<Textarea
 				bind:value={newMessageText}
 				class="w-full bg-transparent border-0 focus:ring-0 p-0 resize-none text-gray-800 dark:text-gray-100"
-				placeholder="Type your message here..."
+				placeholder={serviceStatus === 'unhealthy' ? 'LLM proxy service is not available' : 'Type your message here...'}
 				rows={2}
-				disabled={disabled}
+				disabled={disabled || serviceStatus === 'unhealthy'}
 				on:keydown={handleKeyDown}
 			/>
 		</div>
@@ -229,7 +279,14 @@
 			</div>
 
 			<!-- Send button -->
-			<Button color="primary" on:click={handleSendMessage} aria-label="Send" disabled={disabled} class="transition-colors duration-200">
+			<Button
+				color="primary"
+				on:click={handleSendMessage}
+				aria-label="Send"
+				disabled={disabled || serviceStatus === 'unhealthy'}
+				class="transition-colors duration-200"
+				title={serviceStatus === 'unhealthy' ? 'LLM proxy service is not available' : 'Send message'}
+			>
 				<PaperPlaneOutline class="w-5 h-5 mr-1" />
 				Send
 			</Button>

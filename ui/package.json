@@ -50,6 +50,7 @@
 		"flowbite-svelte": "^0.48.6",
 		"flowbite-svelte-icons": "^2.1.1",
 		"gsap": "^3.12.7",
+		"khoshnus": "^3.0.0",
 		"tailwindcss-animated": "^2.0.0",
 		"theme-change": "^2.5.0"
 	}
