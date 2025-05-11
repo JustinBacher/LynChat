@@ -5,3 +5,4 @@ Plan/
 services/embeddings/.env
 logs/*
 .env
+secrets/*
