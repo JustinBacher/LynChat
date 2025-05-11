@@ -43,23 +43,6 @@ services:
     depends_on:
       - postgres
 
-  backend:
-    build:
-      context: .
-      dockerfile: services/backend/Dockerfile
-      args:
-        - BUILD_ENV=${BUILD_ENV:-development}
-    network_mode: host
-    environment:
-      - RUST_LOG=info
-      - API_PORT=8080
-      - DATABASE_URL=postgres://postgres:postgres@localhost:5432/lyn
-      - QDRANT_URL=http://localhost:6333
-    depends_on:
-      - postgres
-      - qdrant
-      - database
-
   proxy-service:
     build:
       context: .
@@ -110,7 +93,6 @@ services:
       - NODE_ENV=development
     command: npm run dev -- --host
     depends_on:
-      - backend
       - embeddings
       - proxy-service
 
